@@ -1,0 +1,90 @@
+{
+  "workbench.colorCustomizations": {
+    // Set the editor background to solid black
+    "editor.background": "#000000",
+    // Set the editor foreground to white for default text color
+    "editor.foreground": "#FFFFFF"
+  },
+  "editor.tokenColorCustomizations": {
+    "textMateRules": [
+      {
+        // Apply dark neon green to keywords (like `if`, `elseif`, `function`)
+        "scope": [
+          "keyword.control",  // Covers `if`, `else`, `function`, etc.
+          "keyword.other"
+        ],
+        "settings": {
+          "foreground": "#98FB98"  // Dark neon green
+        }
+      },
+      {
+        // Set variables to be white
+        "scope": "variable",
+        "settings": {
+          "foreground": "#FFFFFF"
+        }
+      },
+      {
+        // Strings in light gray for contrast
+        "scope": "string",
+        "settings": {
+          "foreground": "#98FB98"
+        }
+      },
+      {
+        // Functions in a bright blue
+        "scope": "entity.name.function",
+        "settings": {
+          "foreground": "#ff6a00"
+        }
+      },
+      {
+        // Function calls (like `println`) in orange
+        "scope": [
+          "meta.function-call",
+          "support.function"
+        ],
+        "settings": {
+          "foreground": "#DA70D6"  // Built-in function calls in orange
+        }
+      },
+      {
+        // Comments in dark gray for subtlety
+        "scope": "comment",
+        "settings": {
+          "foreground": "#A0A0A0"
+        }
+      },
+      {
+        // Numbers and constants in hot pink
+        "scope": [
+          "constant.numeric",
+          "constant.language"
+        ],
+        "settings": {
+          "foreground": "#FFB347"
+        }
+      },
+      {
+        // Function names (e.g., `my_func`) in yellow
+        "scope": "entity.name.function",
+        "settings": {
+          "foreground": "#FFFF00"
+        }
+      },
+      {
+        // Parentheses in orange
+        "scope": [
+          "punctuation.section",
+          "meta.brace.round"
+        ],
+        "settings": {
+          "foreground": "#C8A2C8"
+        }
+      }
+    ]
+  },
+  "editor.semanticTokenColorCustomizations": {}
+}
+
+
