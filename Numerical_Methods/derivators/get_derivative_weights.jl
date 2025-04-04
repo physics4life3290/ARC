@@ -3,7 +3,7 @@
 
 
 
-function get_derivative_coefficients(difference_type, power, order)
+function get_derivative_coefficients(difference_type::Symbol, power::Int64, order::Int64)
     if difference_type in [:default, :forward]
         coefficients = get(forward_difference_weights, (power, order), nothing)
         if coefficients === nothing
