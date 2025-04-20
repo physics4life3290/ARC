@@ -1,0 +1,122 @@
+#=================================================================================================#
+#                                                                                                 #
+#                             Algorithms for Realistic Computations                               #
+#                                             A.R.C.                                              #
+#                                                                                                 #
+#=================================================================================================#
+
+
+
+---------------------------------------------------------------------------------------------------
+
+Our Goal:
+
+        To create a versatile and robust computational suite that accurately models the dynamics  
+    of continuous media, enabling breakthroughs in scientific research, engineering applications, 
+    and data-driven decision making. By focusing on high-fidelity numerical methods and problem 
+    specific adaptations, A.R.C. ensures precision, efficiency, and adaptability in simulations. 
+    This approach allows us to push the boundaries of scientific inquiry while maintaining a 
+    flexible framework that can evolve with new challenges and discoveries. 
+
+---------------------------------------------------------------------------------------------------
+
+
+
+File structure (Under Construction):
+
+- ---> Represents a file
+\ ---> Represents a folder
+
+ARC
+    - (Dispatch File).jl
+    \ Numerical Methods
+        \ Integration
+            - (Dispatch File).jl
+            \ Methods
+                -Simpsons_rule.jl
+                -Booles_rule.jl
+                -Gauss_quadrature.jl
+            \ Utility
+                -Cell_Average.jl
+            \ Tests
+            
+            \ Debug
+                -Simpsons_rule_debug.jl
+                -Booles_rule_debug.jl
+                -Gauss_quadrature_debug.jl
+        \ Differentiation
+            - (Dispatch File).jl
+            \ Methods
+                -Forward_diff.jl
+                -Backward_diff.jl
+                -Central_diff.jl
+            \ Utility
+            \ Tests
+            \ Debug
+                -Forward_diff_debug.jl
+                -Backward_diff_debug.jl
+                -Central_diff_debug.jl
+        \ Interpolation
+            - (Dispatch File).jl
+            \ Methods
+                -Cubic_spline.jl
+                -Hermite.jl
+                -WENO.jl
+                -div_diff.jl
+            \ Utility
+                -interface_reconstruction.jl
+            \ Tests
+                -interpolation_test.jl
+                -extrapolation_test.jl  
+            \ Debug
+                -Cubic_spline_debug.jl
+                -Hermite_debug.jl
+                -WENO_debug.jl
+                -div_diff_debug.jl
+        \ Iteration
+            - (Dispatch File).jl
+            \ Methods
+                - Newton_Raphson.jl
+                - SOR.jl
+                - CGD.jl
+            \ Utility
+            \ Tests
+            \ Debug
+                -Newton_Raphson_debug.jl
+                -SOR_debug.jl
+                -CGD_debug.jl
+    \ Solvers
+        \ Godunov
+            - (Dispatch File).jl
+            \ Methods
+                -PCM
+                -PLM
+                -PPM
+            \ Utility
+            \ Tests
+            \ Debug
+                -PCM_debug.jl
+                -PLM_debug.jl
+                -PPM_debug.jl
+        \ Riemann
+            - (Dispatch File).jl
+            \ Methods
+                -exact.jl
+                -hll.jl
+                -hllc.jl
+            \ Utility
+            \ Tests
+            \ Debug
+                -exact_debug.jl
+                -hll_debug.jl
+                -hllc_debug.jl
+        \ Predictor Corrector
+            - (Dispatch File).jl
+            \ Methods
+                -Richtmyer_Method.jl
+                -MacCormack_Method.jl
+            \ Utility
+            \ Tests
+            \ Debug 
+                -Richtmyer_Method_debug.jl
+                -MacCormack_Method_debug.jl
