@@ -1,103 +1,175 @@
 
 
+
 include("interpolation_include.jl")
 
+struct interpolation
+    method::Symbol
+    mode::Symbol
+    extrapolate::Bool
+end
 
-function interpolate_to_point(ind_var, dep_var, eval_ind_var; 
-                              method::Symbol = :div_diff, 
-                              mode::Symbol = :minimal, 
-                              d_dep_var = nothing)
+function setup_interpolation(method::Symbol, mode::Symbol, extrapolate::Bool)
+    return interpolation(method, mode, extrapolate)
+end
 
-    # --- Sanity checks ---
-    if eval_ind_var < minimum(ind_var) || eval_ind_var > maximum(ind_var)
-        @warn "Extrapolating outside the given data range. Results may be unreliable."
-    end
 
-    if !issorted(ind_var)
-        sortperm_ = sortperm(ind_var)
-        ind_var = ind_var[sortperm_]
-        dep_var = dep_var[sortperm_]
-        if d_dep_var !== nothing
-            d_dep_var = d_dep_var[sortperm_]
-        end
-    end
-
-    if length(unique(ind_var)) < length(ind_var)
-        @warn "Duplicate values in independent variable; interpolation may be unstable."
-    end
-
-    if length(ind_var) < 3
-        error("At least three points are required for interpolation.")
-    end
-
+function interpolation_dispatch(ind_var::AbstractVector{T}, dep_var::AbstractVector{T}; interp_config::interpolation, d_dep_var=nothing) where T <: Real
+    
+    # Check if the lengths of ind_var and dep_var are equal
     if length(ind_var) != length(dep_var)
-        error("Independent and dependent variable arrays must be the same length.")
+        throw(ArgumentError("ind_var and dep_var must be the same length"))
     end
 
-    if method == :hermite
-        if d_dep_var === nothing
-            error("Hermite interpolation requires derivative values.")
-        elseif length(ind_var) < 4
-            @warn "Hermite interpolation is more stable with at least 4 points."
+    # Check if ind_var is sorted
+    if !issorted(ind_var)
+        throw(ArgumentError("ind_var must be sorted"))
+    end
+
+    # Check if ind_var and dep_var are not empty
+    if isempty(ind_var) || isempty(dep_var)
+        throw(ArgumentError("ind_var and dep_var must not be empty"))
+    end
+    
+    # Check if ind_var and dep_var are of the same dimension
+    if ndims(ind_var) != ndims(dep_var)
+        throw(ArgumentError("ind_var and dep_var must be of the same dimension"))
+    end
+
+    # Check if ind_var and dep_var are of the same size
+    if size(ind_var) != size(dep_var)
+        throw(ArgumentError("ind_var and dep_var must be of the same size"))
+    end
+
+    if interp_config.method == :cubic_spline
+
+        if interp_config.mode == :optimize
+    
+            if interp_config.extrapolate
+                error("Extrapolation is not implemented yet")
+            else
+                return cubic_spline(ind_var, dep_var; throw_on_bounds = false)
+            end
+    
+        elseif interp_config.mode == :test
+            
+            run_interp_convergence_test()
+            run_interp_ptp_vs_all_points_test()
+
+        elseif interp_config.mode == :debug
+            
+            return cubic_spline_debug(ind_var, dep_var; throw_on_bounds = false)
+
+        elseif interp_config.mode == :parallel
+
+            error("parallel mode not implemented yet")
+
+        else
+            println("Unknown mode for cubic spline interpolation")
         end
-    end
+    
+    elseif interp_config.method == :div_diff
 
-    # --- Interpolation selection ---
-    if mode == :minimal
-        return _select_interpolation_method(method, ind_var, dep_var, eval_ind_var, d_dep_var)
+        if interp_config.mode == :optimize
+    
+            if interp_config.extrapolate
+                error("Extrapolation is not implemented yet")
+            else
+                return div_diff(ind_var, dep_var)
+            end
+    
+        elseif interp_config.mode == :test
+            
+            #run_interp_convergence_test()
+            #run_interp_ptp_vs_all_points_test()
+
+        elseif interp_config.mode == :debug
+            
+            return newton_divided_differences_logged(ind_var, dep_var)
+
+        elseif interp_config.mode == :parallel
+
+            error("parallel mode not implemented yet")
+
+        else
+            println("Unknown mode for cubic spline interpolation")
+        end
+
+        println("Using divided difference interpolation")
+    elseif interp_config.method == :hermite
+
+        if d_dep_var === nothing
+            throw(ArgumentError("d_dep_var must be provided for Hermite interpolation"))
+        end
+
+        if interp_config.mode == :optimize
+    
+            if interp_config.extrapolate
+                error("Extrapolation is not implemented yet")
+            else
+                return hermite_interpolation(ind_var, dep_var, d_dep_var, point)
+            end
+        elseif interp_config.mode == :test
+            
+            #run_interp_convergence_test()
+            #run_interp_ptp_vs_all_points_test()
+        elseif interp_config.mode == :debug
+            
+            return hermite_interpolation_logged(ind_var, dep_var, d_dep_var, point)
+
+        elseif interp_config.mode == :parallel
+
+    elseif interp_config.method == :WENO
+        
+            if interp_config.mode == :optimize
+    
+                if interp_config.extrapolate
+                    error("Extrapolation is not implemented yet")
+                else
+                    return WENO(ind_var, dep_var)
+                end
+    
+            elseif interp_config.mode == :test
+                
+                #run_interp_convergence_test()
+                #run_interp_ptp_vs_all_points_test()
+
+            elseif interp_config.mode == :debug
+                
+                return  weno5_interpolate_at_logged(ind_var, dep_var, point; interpolation_type = :left, logfile = "Numerical_Methods/interpolation/debug/output/weno5_debug.txt")
+
+            elseif interp_config.mode == :parallel
+
+                error("parallel mode not implemented yet")
+
+            else
+                println("Unknown mode for WENO interpolation")
+            end
+
+        else
+            println("Unknown method for interpolation")
+        end
     else
-        error("Only :minimal mode is implemented.")
+        println("Unknown interpolation method")
     end
-end
-
-function _select_interpolation_method(method, x, y, x_eval, dy=nothing)
-    if method == :div_diff
-        return newton_interpolation(x, y, x_eval)
-    elseif method == :spline
-        return cubic_spline_interpolation(x, y, x_eval)
-    elseif method == :hermite
-        return hermite_interpolation(x, y, dy, x_eval)
-    elseif method == :WENO
-        return weno5_interpolate_at(y, x, x_eval)
-    else
-        error("Unknown method: $method. Supported: :div_diff, :spline, :hermite, :WENO")
-    end
-end
-
-
-#= Example usage:
-x = [1.0, 2.0, 3.0, 4.0]
-y = [1.0, 8.0, 27.0, 64.0] # y = x^2
-dy = [3.0, 12.0, 27.0, 48.0]
-
-x_eval = 1.5
-interp_value = newton_interpolation(x, y, x_eval)
-error_estimate = newton_interpolation_error(x, y, x_eval)
-
-println("Interpolated value at x=$x_eval: ", interp_value)
-println("Estimated error at x=$x_eval: ", error_estimate)
-=#
-#=
-# Example usage:
-x = [0.0, 1.0, 2.0, 3.0, 4.0]
-y = [0.0, 1.0, 8.0, 27.0, 64.0]
-x_interp = 1.5
-y_interp = cubic_spline_interpolation(x, y, x_interp)
-println(y_interp)
+end     
 
 
 
-# Example Usage
-x_vals = [0.0, 1.0, 2.0]      # Given x-values
-f_vals = [0.0, 1.0, 8.0]      # f(x) = x^3
-df_vals = [0.0, 3.0, 12.0]    # f'(x) = 3x^2
 
-x_interp = 2.5
-result = hermite_interpolation(x_vals, f_vals, df_vals, x_interp)
+# Choices for method are :cubic_spline, :div_diff, :hermite, :WENO 
+method = :cubic_spline
+# Choices for mode are :optimize, :test, :debug, :parallel 
+mode = :optimize
+# Choices for eind_vartrapolation are true or false
+eind_vartrapolate = false
+interpolate = setup_interpolation(method, mode, extrapolate)
 
-println("Interpolated value at x=$x_interp: ", result)
-println("Expected x^3 value at x=$x_interp: ", x_interp^3)
+ind_var = collect(range(0.0, stop=10.0, length=100))
+dep_var = sin.(ind_var)
 
 
-println(interpolate_to_point(x_vals, f_vals, 2.5, method=:hermite, d_dep_var=df_vals))
-=#
+
+println("Interpolation method: ", interpolate.method)
+println("Interpolation mode: ", interpolate.mode)
+println("Extrapolation: ", interpolate.extrapolate)
