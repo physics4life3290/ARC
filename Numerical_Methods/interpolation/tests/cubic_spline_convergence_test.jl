@@ -1,6 +1,6 @@
 
 
-
+using Plots
 include("../methods/cubic_spline.jl")
 
 
@@ -48,7 +48,7 @@ function run_interp_convergence_test()
         end
     end
 
-    using Plots
+    
     plot(title="Cubic Spline Interpolation\nConvergence Plot", xlabel="x", ylabel="y", size=(800, 600), grid=true, xlims=(0,1), ylims=(0.0, 0.05))
     plot!(ind_var_exact, dep_var_exact_ace ./ maximum(dep_var_exact_ace), label="Exact (Cubic)", title="Cubic Spline Interpolation", xlabel="x", ylabel="y")
     plot!(ind_var_interps[1], interp_ys_ace[1] ./ maximum(interp_ys_ace[1]), label="10 points", linestyle=:dash)

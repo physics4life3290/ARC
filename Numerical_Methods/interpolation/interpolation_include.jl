@@ -12,3 +12,9 @@ include("debug/WENO_interp_debug.jl")
 
 include("tests/cubic_spline_convergence_test.jl")
 include("tests/cubic_spline_ptp_vs_all_points.jl")
+
+include("utility/interp_input_check.jl")
+include("utility/cubic_spline_dispatch.jl")
+include("utility/div_diff_dispatch.jl")
+include("utility/hermite_dispatch.jl")
+include("utility/WENO_dispatch.jl")

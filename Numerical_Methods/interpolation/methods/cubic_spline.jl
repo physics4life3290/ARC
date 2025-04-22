@@ -2,7 +2,7 @@
 
 
 
-function cubic_spline(x::AbstractVector{T}, y::AbstractVector{T}; throw_on_bounds::Bool = false) where T <: Real
+function cubic_spline(x::AbstractVector{T}, y::AbstractVector{T}, interp_x; throw_on_bounds::Bool = false) where T <: Real
     n = length(x)
     h = diff(x)
 
@@ -44,18 +44,14 @@ function cubic_spline(x::AbstractVector{T}, y::AbstractVector{T}; throw_on_bound
         return y[i] + b[i]*dx + c[i]*dx^2 + d[i]*dx^3
     end
 
-    return spline_interp
+    return spline_interp(interp_x)
 end
 
 #=
 x = collect(0.0:0.1:10.0)
 y = sin.(x)
-spline = cubic_spline(x, y)
+spline(var) = cubic_spline(x, y, var)
 
 # Single interpolation
 println(spline(1.75))
-
-# Optional: throw if out of bounds
-strict_spline = cubic_spline(x, y; throw_on_bounds=true)
-# strict_spline(-1.0)  # would error
 =#

@@ -39,7 +39,6 @@ ARC
             \ Utility
                 -Cell_Average.jl
             \ Tests
-            
             \ Debug
                 -Simpsons_rule_debug.jl
                 -Booles_rule_debug.jl
@@ -57,22 +56,27 @@ ARC
                 -Backward_diff_debug.jl
                 -Central_diff_debug.jl
         \ Interpolation
-            - (Dispatch File).jl
+            - interpolate.jl              
+            - interpolation_include.jl
+            \ Debug
+                \output
+                -Cubic_spline_debug.jl
+                -Hermite_debug.jl
+                -WENO_debug.jl
+                -div_diff_debug.jl
             \ Methods
                 -Cubic_spline.jl
                 -Hermite.jl
                 -WENO.jl
                 -div_diff.jl
-            \ Utility
-                -interface_reconstruction.jl
             \ Tests
                 -interpolation_test.jl
                 -extrapolation_test.jl  
-            \ Debug
-                -Cubic_spline_debug.jl
-                -Hermite_debug.jl
-                -WENO_debug.jl
-                -div_diff_debug.jl
+            \ Utility
+                -cubic_spline_dispatch.jl
+                -div_diff_dispatch.jl
+                -hermite_dispatch.jl
+                -weno_dispatch.jl            
         \ Iteration
             - (Dispatch File).jl
             \ Methods

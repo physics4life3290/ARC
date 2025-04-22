@@ -1,6 +1,13 @@
 
+function spline_interp(xi, x, y, b, c, d)
+    i = searchsortedlast(x, xi)
+    i = clamp(i, 1, length(x) - 1)
 
-function cubic_spline_debug(x::AbstractVector{T}, y::AbstractVector{T}; throw_on_bounds::Bool = false, logfile::String = "Numerical_Methods/interpolation/debug/output/cubic_spline_debug.txt") where T <: Real
+    dx = xi - x[i]
+    return y[i] + b[i]*dx + c[i]*dx^2 + d[i]*dx^3
+end
+
+function cubic_spline_debug(x::AbstractVector{T}, y::AbstractVector{T}, interp_ind_var; throw_on_bounds::Bool = false, logfile::String = "Numerical_Methods/interpolation/debug/output/cubic_spline_debug.txt") where T <: Real
     open(logfile, "w") do io
         try
             write(io, "Cubic Spline Debug Log\n")
@@ -58,17 +65,5 @@ function cubic_spline_debug(x::AbstractVector{T}, y::AbstractVector{T}; throw_on
         end
     end
 
-    function spline_interp(xi::T)
-        if throw_on_bounds && (xi < x[1] || xi > x[end])
-            error("Interpolation point $xi out of bounds.")
-        end
-
-        i = searchsortedlast(x, xi)
-        i = clamp(i, 1, length(x) - 1)
-
-        dx = xi - x[i]
-        return y[i] + b[i]*dx + c[i]*dx^2 + d[i]*dx^3
-    end
-
-    return spline_interp
+    return spline_interp(interp_ind_var, x, y, b, c, d)
 end
