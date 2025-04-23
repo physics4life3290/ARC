@@ -3,7 +3,7 @@
 
 
 
-function weno5_interpolate_at(f::Vector{Float64}, x::Vector{Float64}, x_interp::Float64, interpolation_type::Symbol=:left)
+function weno5_interpolate_at(x::Vector{Float64}, f::Vector{Float64}, x_interp::Float64, interpolation_type::Symbol=:left)
     N = length(f)
     dx = x[2] - x[1]  # Assumes uniform spacing
 
@@ -57,6 +57,7 @@ function weno5_interpolate_at(f::Vector{Float64}, x::Vector{Float64}, x_interp::
     # Return weighted combination
     return w0*q0 + w1*q1 + w2*q2
 end
+
 
 #=
 # Sample function with a discontinuity

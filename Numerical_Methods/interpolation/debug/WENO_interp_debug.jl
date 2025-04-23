@@ -3,7 +3,7 @@
 
 
 
-function weno5_interpolate_at_logged(f::Vector{Float64}, x::Vector{Float64}, x_interp::Float64;
+function weno5_interpolate_at_logged(x::Vector{Float64}, f::Vector{Float64}, x_interp::Float64;
                                      interpolation_type::Symbol=:left, logfile="Numerical_Methods/interpolation/debug/output/weno5_debug.txt")
     open(logfile, "w") do io
         try

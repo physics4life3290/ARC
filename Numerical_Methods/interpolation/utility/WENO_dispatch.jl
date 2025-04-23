@@ -3,23 +3,23 @@
 
 
 
-function weno_dispatch(interp_config, ind_var::AbstractVector{T}, dep_var::AbstractVector{T}; point::Real) where T <: Real
+function weno_dispatch(interp_config, ind_var::AbstractVector{T}, dep_var::AbstractVector{T}, interp_ind_var::Real) where T <: Real
     if interp_config.mode == :optimize
 
         if interp_config.extrapolate
             error("Extrapolation is not implemented yet")
         else
-            return WENO(ind_var, dep_var)
+            return weno5_interpolate_at(ind_var, dep_var, interp_ind_var, :left)
         end
 
     elseif interp_config.mode == :test
-        
+        error("Tests have not been implemented yet")
         #run_interp_convergence_test()
         #run_interp_ptp_vs_all_points_test()
 
     elseif interp_config.mode == :debug
         
-        return  weno5_interpolate_at_logged(ind_var, dep_var, point; interpolation_type = :left, logfile = "Numerical_Methods/interpolation/debug/output/weno5_debug.txt")
+        return  weno5_interpolate_at_logged(ind_var, dep_var, interp_ind_var; interpolation_type = :left, logfile = "Numerical_Methods/interpolation/debug/output/weno5_debug.txt")
 
     elseif interp_config.mode == :parallel
 

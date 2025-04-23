@@ -26,15 +26,15 @@ function interpolation_dispatch(ind_var::AbstractVector{T}, dep_var::AbstractVec
     
     elseif interp_config.method == :div_diff
 
-        return div_diff_dispatch(interp_config, ind_var, dep_var)
+        return div_diff_dispatch(interp_config, ind_var, dep_var, interp_ind_var)
         
     elseif interp_config.method == :hermite
-        
-        return hermite_dispatch(interp_config, ind_var, dep_var, d_dep_var, point)
+        @warn("Warning: Hermite interpolation seems to need some work, please check back later...\n We recommend one of our other methods for now.")
+        return hermite_dispatch(interp_config, ind_var, dep_var, d_dep_var, interp_ind_var)
 
     elseif interp_config.method == :WENO
         
-        return weno_dispatch(interp_config, ind_var, dep_var)
+        return weno_dispatch(interp_config, ind_var, dep_var, interp_ind_var)
 
     else
         println("Unknown interpolation method")
@@ -45,10 +45,10 @@ end
 
 
 # Choices for method are :cubic_spline, :div_diff, :hermite, :WENO 
-method = :cubic_spline
+method = :div_diff
 # Choices for mode are :optimize, :test, :debug, :parallel 
-mode = :debug
-# Choices for eind_vartrapolation are true or false
+mode = :test
+# Choices for extrapolation are true or false
 extrapolate = false
 interpolate = setup_interpolation(method, mode, extrapolate)
 ind_var = collect(range(0.0, stop=10.0, length=100))
