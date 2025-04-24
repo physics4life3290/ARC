@@ -17,6 +17,7 @@ function hermite_dispatch(interp_config, ind_var, dep_var, d_dep_var, point)
             return hermite_interpolation(ind_var, dep_var, d_dep_var, point)
         end
     elseif interp_config.mode == :test
+        @warn("Warning: Test mode is under construction, please check back later...\n We recommend one of our other modes for now.")
         
         interp_fn(ind_var, dep_var, d_dep_var, interp_ind_var) = [hermite_interpolation(ind_var, dep_var, d_dep_var, xi) for xi in interp_ind_var]
         run_interp_convergence_test(interp_fn)
