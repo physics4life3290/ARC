@@ -13,7 +13,7 @@ function weno_dispatch(interp_config, ind_var::AbstractVector{T}, dep_var::Abstr
         end
 
     elseif interp_config.mode == :test
-        @warn("Warning: Test mode is under construction, please check back later...\n We recommend one of our other modes for now.")
+        error("Warning: Test mode is under construction, please check back later...\n We recommend one of our other modes for now.")
         #run_interp_convergence_test()
         #run_interp_ptp_vs_all_points_test()
 

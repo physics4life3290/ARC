@@ -15,10 +15,7 @@ function cubic_spline_dispatch(interp_config, ind_var, dep_var, interp_ind_var)
 
     elseif interp_config.mode == :test
         
-        interp_fn(x, y, interp_ind_var) = [cubic_spline(x, y, xi; throw_on_bounds=false) for xi in interp_ind_var]
-        run_interp_convergence_test(interp_fn)
-
-        #run_interp_ptp_vs_all_points_test()
+        interpolation_convergence_test(cubic_spline)
 
     elseif interp_config.mode == :debug
         
