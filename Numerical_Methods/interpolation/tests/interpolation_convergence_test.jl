@@ -1,56 +1,72 @@
-
-
 using Plots
+include("../interpolation_include.jl")
+
+# Define test functions and their derivatives
+f_smooth(var) = var^3
+df_smooth(var) = 3 * var^2
+f_oscillatory(var) = sin(var)
+df_oscillatory(var) = cos(var)
+f_square_wave(var) = sign(sin(var))
+df_square_wave(var) = cos(var) * (var > 0 ? 1 : -1)
+
+# Define independent variable
+independent_var = collect(range(0.0, stop=10.0, length=100))
+
+# Compute dependent variables
+smooth_dep_var = f_smooth.(independent_var)
+dsmooth_dep_var = df_smooth.(independent_var)
+oscillatory_dep_var = f_oscillatory.(independent_var)
+doscillatory_dep_var = df_oscillatory.(independent_var)
+square_wave_dep_var = f_square_wave.(independent_var)
+dsquare_wave_dep_var = df_square_wave.(independent_var)
+
+# Store variable data and labels
+test_variables = Dict(
+    "smooth" => (smooth_dep_var, dsmooth_dep_var),
+    "oscillatory" => (oscillatory_dep_var, doscillatory_dep_var),
+    "square_wave" => (square_wave_dep_var, dsquare_wave_dep_var),
+)
 
 
-function run_interp_convergence_test(interp_fn::Function)
-    # Functions to test
-    f_ace(x) = x^3 + 2x^2 + x + 1
-    f_okay(x) = sin(x)
-    f_limit(x) = x < 0.5 ? 0.0 : 1.0
+lengths = [10, 20, 50, 100]
 
-    lengths = [10, 20, 50, 100, 250, 500, 1000, 2500, 5000, 10000]
+function interpolation_convergence_test(interp_func::Function; use_deriv::Bool=false)
+    all_results = Dict{String, Dict{Int, Vector{Float64}}}()
+    interp_xs = Dict{Int, Vector{Float64}}()
 
-    # Exact values
-    ind_var_exact = collect(range(0.0, 3.0, length=100))
-    dep_var_exact_ace = f_ace.(ind_var_exact)
-    dep_var_exact_okay = f_okay.(ind_var_exact)
-    dep_var_exact_limit = f_limit.(ind_var_exact)
+    for (label, (dep_var, ddep_var)) in test_variables
+        all_results[label] = Dict{Int, Vector{Float64}}()
 
-    # Output storage
-    interp_ys_ace = []
-    interp_ys_okay = []
-    interp_ys_limit = []
-    ind_var_interps = []
+        for len in lengths
+            interp_ind_var = collect(range(0.5, stop=9.5, length=len))
+            interp_dep_var = Vector{Float64}(undef, len)
 
-    for len in lengths 
-        ind_var_interp = collect(range(0.1, 2.9, length=len))
-        push!(ind_var_interps, ind_var_interp)
+            for i in 1:len
+                x_eval = interp_ind_var[i]
 
-        # Evaluate functions at exact x values
-        y_ace = f_ace.(ind_var_exact)
-        y_okay = f_okay.(ind_var_exact)
-        y_limit = f_limit.(ind_var_exact)
+                interp_dep_var[i] = use_deriv ?
+                    interp_func(independent_var, dep_var, ddep_var, x_eval) :
+                    interp_func(independent_var, dep_var, x_eval)
+            end
 
-        # Interpolate
-        push!(interp_ys_ace, interp_fn(ind_var_exact, y_ace, ind_var_interp))
-        push!(interp_ys_okay, interp_fn(ind_var_exact, y_okay, ind_var_interp))
-        push!(interp_ys_limit, interp_fn(ind_var_exact, y_limit, ind_var_interp))
-    end
-
-    # Plotting (reused logic)
-    function plot_convergence(title_str, exact, interps, fname)
-        plot(title=title_str, xlabel="x", ylabel="y", size=(800, 600), grid=true)
-        plot!(ind_var_exact, exact, label="Exact")
-        for (i, y) in enumerate(interps)
-            plot!(ind_var_interps[i], y, label="$(lengths[i]) points", linestyle=:dash)
+            all_results[label][len] = interp_dep_var
+            interp_xs[len] = interp_ind_var
         end
-        savefig(fname)
     end
 
-    plot_convergence("Interpolation Convergence\n(Cubic Poly)", ind_var_interps, interp_ys_ace, "Numerical_Methods/interpolation/tests/graphs/interp_ace.pdf")
-    plot_convergence("Interpolation Convergence\n(Smooth)", ind_var_interps, interp_ys_okay, "Numerical_Methods/interpolation/tests/graphs/interp_okay.pdf")
-    plot_convergence("Interpolation Convergence\n(Step)", ind_var_interps, interp_ys_limit, "Numerical_Methods/interpolation/tests/graphs/interp_limit.pdf")
+    # Plotting
+    for (label, result_dict) in all_results
+        plt = plot(title="Interpolations for $label function", xlabel="x", ylabel="Interpolated f(x)")
+        for len in lengths
+            plot!(plt, interp_xs[len], result_dict[len], label="n=$len", lw=2)
+        end
+        display(plt)
+        # savefig(plt, "interpolation_$(label).png")
+    end
 end
 
-
+# Example usage with cubic_spline
+#interpolation_convergence_test(cubic_spline)
+#interpolation_convergence_test(newton_interpolation)
+#interpolation_convergence_test(hermite_interpolation; use_deriv=true)
+interpolation_convergence_test(weno5_interpolate_at)

@@ -18,8 +18,7 @@ function interpolation_dispatch(ind_var::AbstractVector{T}, dep_var::AbstractVec
     
     # Check input for proper characteristics
     prelim_interp_check(ind_var, dep_var)
-
-    
+ 
     if interp_config.method == :cubic_spline
 
         return cubic_spline_dispatch(interp_config, ind_var, dep_var, interp_ind_var)
@@ -29,6 +28,7 @@ function interpolation_dispatch(ind_var::AbstractVector{T}, dep_var::AbstractVec
         return div_diff_dispatch(interp_config, ind_var, dep_var, interp_ind_var)
         
     elseif interp_config.method == :hermite
+        
         @warn("Warning: Hermite interpolation seems to need some work, please check back later...\n We recommend one of our other methods for now.")
         return hermite_dispatch(interp_config, ind_var, dep_var, d_dep_var, interp_ind_var)
 

@@ -13,12 +13,23 @@ Our Goal:
 
         To create a versatile and robust computational suite that accurately models the dynamics  
     of continuous media, enabling breakthroughs in scientific research, engineering applications, 
-    and data-driven decision making. By focusing on high-fidelity numerical methods and problem 
-    specific adaptations, A.R.C. ensures precision, efficiency, and adaptability in simulations. 
-    This approach allows us to push the boundaries of scientific inquiry while maintaining a 
-    flexible framework that can evolve with new challenges and discoveries. 
+    and data-driven decision making. 
+
+Our Mission:
+
+        To provide a comprehensive set of algorithms and tools that empower researchers and 
+    engineers to tackle complex problems in fluid dynamics, particularly in the branches of Earth
+    science: 
+
+        - Astrophysics
+        - Physical Meteorology/Atmospheric Science
+        - Geology and Oceanography 
+
+    fostering innovation and advancing knowledge through computational excellence.
 
 ---------------------------------------------------------------------------------------------------
+
+
 
 
 
@@ -31,7 +42,7 @@ ARC
     - (Dispatch File).jl
     \ Numerical Methods
         \ Integration
-            - (Dispatch File).jl
+            - integration.jl
             \ Methods
                 -Simpsons_rule.jl
                 -Booles_rule.jl
@@ -44,7 +55,7 @@ ARC
                 -Booles_rule_debug.jl
                 -Gauss_quadrature_debug.jl
         \ Differentiation
-            - (Dispatch File).jl
+            - differentiation.jl
             \ Methods
                 -Forward_diff.jl
                 -Backward_diff.jl
@@ -78,7 +89,7 @@ ARC
                 -hermite_dispatch.jl
                 -weno_dispatch.jl            
         \ Iteration
-            - (Dispatch File).jl
+            - iteration.jl
             \ Methods
                 - Newton_Raphson.jl
                 - SOR.jl
@@ -124,3 +135,49 @@ ARC
             \ Debug 
                 -Richtmyer_Method_debug.jl
                 -MacCormack_Method_debug.jl
+
+
+Phase I: Implement Interpolation suite
+
+      i) Methods for Interpolation                   # Complete
+          - Cubic Spline Interpolation
+          - Hermite Interpolation
+          - WENO Interpolation
+          - Divided Difference Interpolation
+     ii) Implement debug of each Method              # Complete
+    iii) Implement tests of each Method              
+     iv) Implement dispatch file for each Method     # Complete
+      v) implement Interpolation dispatch file       # Complete
+      
+Phase II: Implement Integration suite
+
+      i) Methods for Integration                     # Complete
+          - Simpson's Rule
+          - Boole's Rule
+          - Gauss Quadrature
+     ii) Implement debug of each Method
+    iii) Implement tests of each Method
+     iv) Implement dispatch file for each Method
+      v) implement Integration dispatch file
+
+Phase III: Implement Differentiation suite
+
+          i) Methods for Differentiation             # Complete
+              - Forward Difference
+              - Backward Difference
+              - Central Difference
+         ii) Implement debug of each Method
+        iii) Implement tests of each Method
+         iv) Implement dispatch file for each Method
+          v) implement Differentiation dispatch file
+
+Phase IV: Implement Iteration suite
+
+          i) Methods for Iteration                   # Complete
+              - Newton Raphson
+              - SOR
+              - CGD
+         ii) Implement debug of each Method
+        iii) Implement tests of each Method
+         iv) Implement dispatch file for each Method
+          v) implement Iteration dispatch file

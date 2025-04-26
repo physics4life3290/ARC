@@ -1,0 +1,13 @@
+
+
+
+
+
+Welcome to the Interpolation Suite of A.R.C.!
+
+Currently, this suite supports the use of four different interpolation methods.
+They are
+    - Cubic Spline
+    - Divided Difference
+    - Hermite Polynomial
+    - WENO 

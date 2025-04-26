@@ -12,7 +12,7 @@ function weno5_interpolate_at(x::Vector{Float64}, f::Vector{Float64}, x_interp::
     if i === nothing || i < 3 || i > N - 2
         error("x_interp = $x_interp is out of bounds for WENO5 interpolation.")
     end
-    i -= 1
+    #i -= 1
 
     # Relative position of x_interp in [x[i], x[i+1]]
     ξ = (x_interp - x[i]) / dx

@@ -50,13 +50,16 @@ end
 #=
 # Define function to interpolate
 f(x) = sin(x)
+f(x) = x^3
 
 # Sample data points
-x_nodes = [0.0, π/6, π/4, π/3]
+#x_nodes = [0.0, π/6, π/4, π/3]
+x_nodes = [0.0, 1.0, 2.0, 3.0]
 y_nodes = f.(x_nodes)
 
 # Point to evaluate the interpolation
-x_eval = π/5  # ≈ 0.628
+#x_eval = π/5  # ≈ 0.628
+x_eval = 1.5
 
 # Compute interpolated value
 p_val = newton_interpolation(x_nodes, y_nodes, x_eval)
