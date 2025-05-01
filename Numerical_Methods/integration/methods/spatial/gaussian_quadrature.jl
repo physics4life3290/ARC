@@ -69,7 +69,7 @@ function gauss_quad(x_vals, f_vals, n, interp_method=:default)
     total = 0.0
     for i in 1:n
         x_mapped = (b - a) / 2 * roots[i] + (a + b) / 2
-        f_mapped = interpolate_to_point(x_vals, f_vals, x_mapped, method=interp_method)
+        f_mapped = interpolation_dispatch(x_vals, f_vals, x_mapped)
         total += weights[i] * f_mapped
     end
     return (b - a) / 2 * total

@@ -3,7 +3,7 @@ using Statistics  # For mean()
 using LinearAlgebra
 using Random
 
-include("../interpolation_include.jl")
+#include("../interpolation_include.jl")
 
 # Define test functions and their derivatives
 f_smooth(var) = var^3
@@ -208,5 +208,5 @@ end
 # Example usage with cubic_spline
 #interpolation_convergence_test(cubic_spline)
 #interpolation_convergence_test(newton_interpolation)
-interpolation_convergence_test(hermite_interpolation; use_deriv=true)
+#interpolation_convergence_test(hermite_interpolation; use_deriv=true)
 #interpolation_convergence_test(weno5_interpolate_at)

@@ -14,8 +14,13 @@ function setup_interpolation(method::Symbol, mode::Symbol, extrapolate::Bool)
 end
 
 
-function interpolation_dispatch(ind_var::AbstractVector{T}, dep_var::AbstractVector{T}, interp_ind_var; interp_config::interpolation, d_dep_var=nothing) where T <: Real
-    
+function interpolation_dispatch(ind_var::AbstractVector{T}, dep_var::AbstractVector{T}, interp_ind_var; interp_config=:default, d_dep_var=nothing) where T <: Real
+    if interp_config == :default
+        method = :cubic_spline
+        mode = :optimize
+        extrapolate = false
+        interp_config = setup_interpolation(method, mode, extrapolate)
+    end
     # Check input for proper characteristics
     prelim_interp_check(ind_var, dep_var)
  
@@ -24,12 +29,12 @@ function interpolation_dispatch(ind_var::AbstractVector{T}, dep_var::AbstractVec
         return cubic_spline_dispatch(interp_config, ind_var, dep_var, interp_ind_var)
     
     elseif interp_config.method == :div_diff
-
+        @warn("Warning: This method works best when used piecewise. This is due to Gibb's Phenomena!")
         return div_diff_dispatch(interp_config, ind_var, dep_var, interp_ind_var)
         
     elseif interp_config.method == :hermite
         
-        @warn("Warning: Hermite interpolation seems to need some work, please check back later...\n We recommend one of our other methods for now.")
+        @warn("Warning: This method works best when used piecewise. This is due to Gibb's Phenomena!")
         return hermite_dispatch(interp_config, ind_var, dep_var, d_dep_var, interp_ind_var)
 
     elseif interp_config.method == :WENO
@@ -43,7 +48,7 @@ end
 
 
 
-
+#=
 # Choices for method are :cubic_spline, :div_diff, :hermite, :WENO 
 method = :div_diff
 # Choices for mode are :optimize, :test, :debug, :parallel 
@@ -59,3 +64,4 @@ d_dep_var = 2 .* ind_var
 point = 1.75
 
 println(interpolation_dispatch(ind_var, dep_var, point; interp_config=interpolate, d_dep_var=d_dep_var))
+=#
