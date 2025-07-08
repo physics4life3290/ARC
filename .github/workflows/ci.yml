@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-and-lint:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        julia-version: [1.8, 1.9, 1.10]
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup Julia
+      uses: julia-actions/setup-julia@v1
+      with:
+        version: ${{ matrix.julia-version }}
+
+    - name: Install dependencies
+      run: julia -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+
+    - name: Run tests
+      run: julia -e 'using Pkg; Pkg.test()'
+
+    - name: Run linting with Lint.jl
+      run: julia -e 'using Pkg; Pkg.add("Lint"); using Lint; Lint.lint_package(pwd())'
