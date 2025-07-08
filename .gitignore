@@ -1,0 +1,6 @@
+Manifest.toml
+.julia/
+.vscode/
+.DS_Store
+*.jl.cov
+*.jl.*.cov
