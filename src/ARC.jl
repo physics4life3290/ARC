@@ -4,11 +4,30 @@ using CUDA
 using HDF5
 using Plots
 
+include("utility/hydro_structs.jl")
 include("grids/UniformAxis.jl")
 include("grids/_1Dimension/Construct1DCartesian.jl")
 include("grids/_1Dimension/Construct1DSpherical.jl")
 include("grids/_2Dimension/Construct2DCartesian.jl")
 include("grids/_2Dimension/Construct2DSpherical.jl")
+
+include("solvers/HYDRO/FDM/FTCS.jl")
+include("solvers/HYDRO/FDM/BTCS.jl")
+include("solvers/HYDRO/FDM/LaxFriedrichs.jl")
+include("solvers/HYDRO/FDM/Richtmyer.jl")
+
+include("../examples/Linear1DAdvection.jl")
+include("../examples/Linear2DAdvection.jl")
+include("../examples/SodShockTube1D.jl")
+include("../examples/SodShockTube2D.jl")
+include("../examples/SedovBlastWave1D.jl")
+include("../examples/SedovBlastWave2D.jl")
+include("../examples/ShuOsher1D.jl")
+include("../examples/ShuOsher2D.jl")
+include("../examples/DoubleBlastWaveInteraction1D.jl")
+include("../examples/DoubleBlastWaveInteraction2D.jl")
+include("../examples/DoubleMachReflection2D.jl")
+
 
 export run_simulation
 export ConstructUniformAxis
@@ -16,48 +35,35 @@ export Construct1DCartesian
 export Construct1DSpherical
 export Construct2DCartesian
 export Construct2DSpherical
+export FTCS_Step
+export BTCS_Step
+export LaxFriedrichs_Step
+export Richtmyer_Step
 
 function run_simulation()
-    
-    cart1Dgrid = Construct1DCartesian(1.0, 100, 3, 0.5, "cm")
 
-    t = 1.0
-    CFL = 0.3
-    # --- Initial condition ---
-    function initial_condition(x)
-        return exp.(-100 .* (x .- 0.5).^2)
-    end
+    _grid = Construct1DCartesian(2.0, 10, 3, 0.0, "cm")
+    ρL, uL, pL = 1.0, 0.0, 1.0
+    ρR, uR, pR = 0.125, 0.0, 0.1
+    γ = 4/3
+    t_final = 0.2
+    cfl = 0.3
+    cL = sqrt(γ * pL / ρL)
+    cR = sqrt(γ * pR / ρR)
+    dt = cfl * _grid.xcoord.spacing / max(cL, cR)
 
-    function build1DLinearAdvection(cart1Dgrid, t, CFL)
-        u = initial_condition(cart1Dgrid.xcoord.centers)
-        u0 = copy(u)
-        N = length(u)
-        a = 1.0
-        dt = CFL * cart1Dgrid.xcoord.spacing / abs(a)
-        nt = Int(floor(t / dt))
-        
-        # --- Build BTCS matrix (periodic) ---
-        r = a * dt / (2 * cart1Dgrid.xcoord.spacing)
-        A = [i == j ? 1.0 : 0.0 for i in 1:N, j in 1:N]
+    W = Construct1DSodShockTubePrimitives(_grid.xcoord.total_zones, ρL, uL, pL, ρR, uR, pR, γ)
+    U = Construct1DConservatives(W, γ)
+    F = FluxVars(U.momentum, 
+                 U.momentum .* W.velocity .+ W.pressure,
+                 W.velocity .* (U.total_energy .+ W.pressure))
 
-        for i in 1:N
-            A[i, mod1(i+1, N)] +=  r
-            A[i, mod1(i-1, N)] += -r
-        end
-    end
-    # --- Set up animation ---
-    anim = @animate for n in 1:nt
-        u = A \ u
+    RichtmyerStep(U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing, γ)
 
-        if n % 1 == 0 || n == 1 || n == nt
-            plot(cart1Dgrid.xcoord.centers, u0, lw=2, label="Initial", xlabel="x", ylabel="u", legend=:topright)
-            plot!(cart1Dgrid.xcoord.centers, u, lw=2, label="t = $(round(n*dt, digits=2))")
-        end
-    end
-
-    # --- Save animation as GIF ---
-    gif(anim, "btcs_advection.gif", fps=100)
+    plot(_grid.xcoord.all_centers, W.density, label="Density", xlabel="Position (cm)", ylabel="Density")
+    plot!(_grid.xcoord.all_centers, U.density, label="New Density")
 
 end
+
 
 end # module
