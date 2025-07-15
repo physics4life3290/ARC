@@ -20,9 +20,15 @@ function RichtmyerStep(U::ConservativeVars, F::FluxVars, dt::Float64, ghost_zone
         flux_m = m_half * u_half + p_half
         flux_E = u_half * (E_half + p_half)
 
-        # Corrector Step: update U using midpoint flux
-        U.density[i]  -= (dt / spacing) * (flux_ρ - F.dens_flux[i])
-        U.momentum[i] -= (dt / spacing) * (flux_m - F.mome_flux[i])
-        U.total_energy[i] -= (dt / spacing) * (flux_E - F.tot_ener_flux[i])
+        F.dens_flux[i] = flux_ρ
+        F.mome_flux[i] = flux_m 
+        F.tot_ener_flux[i] = flux_E
+    end
+    
+    for i in ghost_zones+1:total_zones-ghost_zones
+    # Corrector Step: update U using midpoint flux
+        U.density[i]  -= (dt / spacing) * (F.dens_flux[i+1] - F.dens_flux[i-1])
+        U.momentum[i] -= (dt / spacing) * (F.mome_flux[i+1] - F.mome_flux[i-1])
+        U.total_energy[i] -= (dt / spacing) * (F.tot_ener_flux[i+1] - F.tot_ener_flux[i-1])
     end
 end

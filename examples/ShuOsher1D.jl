@@ -3,7 +3,7 @@
 
 
 
-function Construct1DShuOsherPrimitives(x::AbstractVector{<:Real}, γ::Real)
+function Construct1DShuOsherPrimitives(x::AbstractVector{<:Real}, γ::Real, grid_center::Real)
     total_zones = length(x)
 
     W = PrimitiveVariables(
@@ -14,7 +14,7 @@ function Construct1DShuOsherPrimitives(x::AbstractVector{<:Real}, γ::Real)
     )
 
     for i in 1:total_zones
-        if x[i] < -4.0
+        if x[i] < grid_center
             W.density[i] = 3.857143
             W.velocity[i] = 2.629369
             W.pressure[i] = 10.3333
