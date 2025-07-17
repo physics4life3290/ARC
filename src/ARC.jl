@@ -3,8 +3,15 @@ module ARC
 using CUDA
 using HDF5
 using Plots
+using ArgParse
+
+
+include("../UI/initiate_UI.jl")
+include("../UI/prompt_setup.jl")
+include("../UI/choose_problem.jl")
 
 include("utility/hydro_structs.jl")
+include("utility/plot_h5.jl")
 
 include("grids/UniformAxis.jl")
 include("grids/_1Dimension/Construct1DCartesian.jl")
@@ -38,6 +45,7 @@ export FTCS_Step
 export BTCS_Step
 export LaxFriedrichs_Step
 export Richtmyer_Step
+export plot_snapshot
 
 function ConservativetoPrimitive(U, W, γ)
     W.density = U.density
@@ -100,24 +108,24 @@ function apply_outflow_boundaries!(U::ConservativeVars, ng::Int, nx::Int)
     end
 end
 
-
+#=
 function run_simulation()
 
-    _grid = Construct1DCartesian(2.0, 100, 3, 0.0, "cm")
+    _grid = Construct1DCartesian(1.0, 500, 3, 0.0, "cm")
     ρL, uL, pL = 1.0, 0.0, 1.0
     ρR, uR, pR = 0.125, 0.0, 0.1
     γ = 4/3
-    t_final = 1.0
+    t_final = 0.01
     t = 0.0
     cfl = 0.3
     cL = sqrt(γ * pL / ρL)
     cR = sqrt(γ * pR / ρR)
     dt = cfl * _grid.xcoord.spacing / max(cL, cR)
+    h5_filename = "SodShockTube1D.h5"
     
     W = Construct1DSodShockTubePrimitives(_grid.xcoord.total_zones, ρL, uL, pL, ρR, uR, pR, γ)
     #W = Construct1DShuOsherPrimitives(_grid.xcoord.all_centers, γ, 0.0)
-    #W = Construct1DSedovBlastPrimitives(_grid.xcoord.all_centers, _grid.xcoord.spacing,
-    #                                    0.5, 1.0, 1.0, 1.0, γ)
+    #W = Construct1DSedovBlastPrimitives(_grid.xcoord.all_centers, _grid.xcoord.spacing, 0.5, 1.0, 1.0, 1.0, γ)
     #W = Construct1DBlastWaveInteractionPrimitives(_grid.xcoord.all_centers, γ)
     
     U = Construct1DConservatives(W, γ)
@@ -126,21 +134,26 @@ function run_simulation()
                 U.momentum .* W.velocity .+ W.pressure,
                 W.velocity .* (U.total_energy .+ W.pressure))
 
-    anim = @animate while t < t_final 
-        t += dt
-        println("Time: ", t)
-        plot(title="Sod Shock Tube at t=$(t) s", xlabel="Position (cm)", ylabel="Density, Velocity, Pressure, Internal Energy", ylim=(0.0, 1.0), legend=:topright)
-        plot!(_grid.xcoord.all_centers, W.density / maximum(W.density), label="Density")
-        plot!(_grid.xcoord.all_centers, W.velocity / maximum(abs.(W.velocity)), label="Velocity")
-        plot!(_grid.xcoord.all_centers, W.pressure / maximum(W.pressure), label="Pressure")
-        plot!(_grid.xcoord.all_centers, W.int_energy / maximum(W.int_energy), label="Internal Energy")
+    counter = 0
 
-        apply_reflecting_boundaries!(U, _grid.xcoord.ghost_zones, _grid.xcoord.zones)
+    #anim = @animate while t < t_final 
+    while t < t_final
+        t += dt
+        counter += 1
+        #plot(title="Sod Shock Tube at t=$(t) s", xlabel="Position (cm)", ylabel="Density, Velocity, Pressure, Internal Energy", ylim=(0.0, 1.0), legend=:topright)
+
+        println("Step ", counter, " Time: ", t)
+        #plot!(_grid.xcoord.all_centers, W.density / maximum(W.density), label="Density")
+        #plot!(_grid.xcoord.all_centers, W.velocity / maximum(abs.(W.velocity)), label="Velocity")
+        #plot!(_grid.xcoord.all_centers, W.pressure / maximum(W.pressure), label="Pressure")
+        #plot!(_grid.xcoord.all_centers, W.int_energy / maximum(W.int_energy), label="Internal Energy")
+
+        #apply_reflecting_boundaries!(U, _grid.xcoord.ghost_zones, _grid.xcoord.zones)
         #apply_periodic_boundaries!(U, _grid.xcoord.ghost_zones, _grid.xcoord.zones)
         #apply_outflow_boundaries!(U, _grid.xcoord.ghost_zones, _grid.xcoord.zones)
-        #FTCS_Step(U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
+        #FTCS_Step!(U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
         LaxFriedrichs_Step(U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
-        #RichtmyerStep(U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing, γ)
+        #RichtmyerStep!(U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing, γ)
 
         W.density .= U.density
         W.velocity .= U.momentum ./ U.density
@@ -163,15 +176,50 @@ function run_simulation()
         wavespeed = abs.(W.velocity) .+ cs
         maxspeed = maximum(wavespeed)
         dt = cfl * _grid.xcoord.spacing / max(maxspeed, 1e-6)
-
         F.dens_flux .= U.momentum
         F.mome_flux .= U.momentum .* W.velocity .+ W.pressure
         F.tot_ener_flux .= W.velocity .* (U.total_energy .+ W.pressure)
+
+        
+
+        if counter % 1 == 0
+            groupname = "step_$(counter)"
+            println("Saving snapshot to $h5_filename in group $groupname")
+            mode = isfile(h5_filename) ? "r+" : "w"
+            h5open(h5_filename, mode) do file  # "a" = append mode
+                grp = create_group(file, groupname)
+
+                grp["x"] = _grid.xcoord.all_centers
+
+                grp["W/density"]      = W.density
+                grp["W/velocity"]     = W.velocity
+                grp["W/pressure"]     = W.pressure
+                grp["W/int_energy"]   = W.int_energy
+
+                grp["U/density"]      = U.density
+                grp["U/momentum"]     = U.momentum
+                grp["U/total_energy"] = U.total_energy
+
+                grp["F/dens_flux"]    = F.dens_flux
+                grp["F/mome_flux"]    = F.mome_flux
+                grp["F/tot_ener_flux"]= F.tot_ener_flux
+
+                grp["time"] = t
+            end
+        end
+
     end
 
-    gif(anim, "Double_Blast_Wave_Interaction_Reflective.gif", fps=120)
+    #gif(anim, "Double_Blast_Wave_Interaction_Reflective.gif", fps=120)
+
+end
+=#
+
+function run_simulation()
+
+    initiate_UI()
 
 end
 
 
-end # module
+end
