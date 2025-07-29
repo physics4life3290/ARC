@@ -4,8 +4,8 @@
 
 
 #FTCS Method 
-function FTCS_Step!(U::ConservativeVars,
-                    F::FluxVars,
+function FTCS_Step!(U::ConservativeVariables,
+                    F::FluxVariables,
                     dt::Float64,
                     ghost_zones::Int,
                     total_zones::Int,
@@ -15,10 +15,12 @@ function FTCS_Step!(U::ConservativeVars,
     U_old = deepcopy(U)
 
     # 2) compute new solution from old
-    for i in (ghost_zones+1):(total_zones-ghost_zones)
-        U.density[i]      = U_old.density[i]      - (dt/(2*spacing))*(F.dens_flux[i+1]  - F.dens_flux[i-1])
-        U.momentum[i]     = U_old.momentum[i]     - (dt/(2*spacing))*(F.mome_flux[i+1]  - F.mome_flux[i-1])
-        U.total_energy[i] = U_old.total_energy[i] - (dt/(2*spacing))*(F.tot_ener_flux[i+1] - F.tot_ener_flux[i-1])
+    Threads.@threads for i in (ghost_zones+1):(total_zones-ghost_zones)
+        @inbounds begin
+            U.density_centers[i]      = U_old.density_centers[i]      - (dt/(2*spacing))*(F.density_flux[i+1]  - F.density_flux[i-1])
+            U.momentum_centers[i]     = U_old.momentum_centers[i]     - (dt/(2*spacing))*(F.momentum_flux[i+1]  - F.momentum_flux[i-1])
+            U.total_energy_centers[i] = U_old.total_energy_centers[i] - (dt/(2*spacing))*(F.total_energy_flux[i+1] - F.total_energy_flux[i-1])
+        end
     end
 
     return nothing

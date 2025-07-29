@@ -9,14 +9,14 @@ struct PrimitiveVariables
     int_energy::Vector{Float64}
 end
 
-struct ConservativeVars
+struct ConservativeVarsFDM
     density::Vector{Float64}
     momentum::Vector{Float64}
     total_energy::Vector{Float64}
 end
 
-function Construct1DConservatives(W::PrimitiveVariables, γ::Float64)
-    U = ConservativeVars(
+function Construct1DFDMConservatives(W::PrimitiveVariables, γ::Float64)
+    U = ConservativeVarsFDM(
         W.density,
         W.density .* W.velocity,
         W.density .* (W.int_energy .+ W.pressure ./ (W.density .* (γ - 1)) .+ W.velocity.^2 ./ 2)

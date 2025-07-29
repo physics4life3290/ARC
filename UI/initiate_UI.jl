@@ -1,80 +1,60 @@
 
 
+# Prompt user
+function run_introduction()
+    println(
+    "    #====================#
+    #  The CΩδΞχ Trials  #
+    #====================#")
+    println("This is the test suite for ARC...")
+    println("Press enter to continue...")
+    readline()
+end
 
 
 
 function initiate_UI()
    
     # Options
-    problems = ["Sod Shock Tube", "Sedov Blast Wave", "Shu-Osher Problem", "Double Blast Wave Interaction", "Double Mach Reflection"]
-    solvers = ["FTCS", "Lax-Friedrichs", "Richtmyer"]
+    #problems = ["Sod Shock/Riemann Type Problem", "Sedov Blast Wave", "Shu-Osher Problem"]
+    problems = [:ShockTube, :BlastWave, :ShuOsher]
+    #solvers = ["FTCS", "Lax-Friedrichs", "Richtmyer", "Godunov's Method", "MUSCL", "PPM"]
+    solvers = [:FTCS, :LaxFriedrichs, :Richtmyer, :GodunovsScheme, :MUSCL, :PPM]
     dimensions = ["1D", "2D"]
-    coords = ["Cartesian", "Spherical"]
-    boundaries = ["Reflecting", "Periodic", "Outflow", "No Boundary Condition"]
+    #coords = ["Cartesian", "Spherical", "Cylindrical"]
+    coords = [:Cartesian, :Spherical, :Cylindrical]
+    #modes = ["Standard (HDF5 output)", "Verbose (HDF5 and general .txt output)", "Debug (In depth .txt output)", "Animate (GIF and HDF5 output)", "Benchmark ()"]
+    modes = [:Standard, :Verbose, :Debug, :Animate, :Benchmark]
+    #boundaries = ["Reflecting", "Periodic", "Outflow", "No Boundary Condition"]
+    boundaries = [:Reflecting, :Periodic, :Outflow, :None]
 
-    # Prompt user
-    println("Welcome to The Codex Trials...")
-    println("This is the test suite for ARC...")
+    run_introduction()
+
+    println("Please select the following options to set up your simulation:")
     problem_choice = prompt_choice("Choose a problem:", problems)
-    dimension_choice = prompt_choice("Choose the dimension:", dimensions)
+    mode_choice = prompt_choice("Choose a mode:", modes)
+    dimension_choice = prompt_choice_string("Choose the dimension:", dimensions)
     coord_choice = prompt_choice("Choose the coordinate system:", coords)
-    num_zones = prompt_number("Enter the number of zones in the grid:", Int)
-    num_ghost_zones = prompt_number("Enter the number of ghost zones:", Int)
-    boundary_choice = prompt_choice("Choose a boundary condition:", boundaries)
     solver_choice = prompt_choice("Choose a solver:", solvers)
-    if solver_choice == 1
-        println("You have chosen the FTCS solver.")
-        println("Note: FTCS is conditionally stable and will not converge...")
-        println("Its purpose is educational, not practical.")
-    end
-    cfl = prompt_number("Enter the CFL number:", Float64)
-    if cfl <= 0
-        println("CFL number must be positive. Defaulting to 0.5.")
-        cfl = 0.5
-    elseif cfl > 1
-        println("CFL number should typically be less than or equal to 1 as it may lead to instability in some cases. Proceeding with the provided value.")
-    end
-    t_final = prompt_number("Enter the final time for the simulation:", Float64)
-    print("Enter the output filename (without extension): ")
+    boundary_choice = prompt_choice("Choose boundary conditions:", boundaries)
+    println("Enter the name of the output file without the extension...")
     output_filename = readline()
 
-    # Now that user input is collected for the general problem, we can handle specific problem setup
-    if problem_choice == 1
-        println("You have chosen the Sod Shock Tube problem.")
-        # We want to build a function to set up the Sod Shock Tube problem
-    elseif problem_choice == 2
-        println("You have chosen the Sedov Blast Wave problem.")
-    elseif problem_choice == 3
-        println("You have chosen the Shu-Osher Problem.")
-    elseif problem_choice == 4
-        println("You have chosen the Double Blast Wave Interaction problem.")
-    elseif problem_choice == 5
-        println("You have chosen the Double Mach Reflection problem.")
-        if dimension_choice < 2
-            println("Double Mach Reflection is only available in 2D. Defaulting to 2D.")
-            dimension_choice = 2
+    primary_input = (problem = problem_choice, mode = mode_choice, filename = output_filename, dimension = dimension_choice, coord_sys = coord_choice, solver = solver_choice, boundary_condition = boundary_choice)
+    
+    
+    if primary_input.problem == :ShockTube
+        if primary_input.dimension == 1
+            if primary_input.coord_sys == :Cartesian
+                println("You have selected 1D Sod Shock Problem in Cartesian Coordinates...")
+                secondary_input = (domain = nothing, grid_center = nothing, zones = nothing, 
+                                    ghost_zones = nothing, x_min = nothing, x_max = nothing, 
+                                    wall_positions = nothing, sod_states = nothing, γ = nothing, cfl = nothing, t_final=nothing)
+                secondary_input = _1DSODUserInput(primary_input)
+                UserInput = (primary_input=primary_input, secondary_input=secondary_input)
+            end
         end
     end
-
-    # Collect parameters
-    params = (
-        problem = problems[problem_choice],
-        solver = solvers[solver_choice],
-        dimension = dimensions[dimension_choice],
-        coordinate_system = coords[coord_choice],
-        boundary_condition = boundaries[boundary_choice],
-        num_zones = num_zones,
-        num_ghost_zones = num_ghost_zones,
-        cfl = cfl,
-        t_final = t_final,
-        output_filename = output_filename,
-    )
-
-    # Print selections
-    println("\nYou selected:")
-    for (k,v) in pairs(params)
-        println("  $k ---> $v")
-    end
-
-    return params
+    
+    return UserInput
 end

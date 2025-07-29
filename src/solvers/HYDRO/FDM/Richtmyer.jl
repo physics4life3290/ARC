@@ -3,46 +3,69 @@
 
 
 
-function RichtmyerStep!(U::ConservativeVars,
-                        F::FluxVars,
+function RichtmyerStep!(U::ConservativeVariables,
+                        F::FluxVariables,
+                        _grid::CartesianGrid1D,
+                        UserInput,
                         dt::Float64,
                         ghost_zones, total_zones, spacing, γ)
 
-    # allocate half–step (face-centered) flux arrays
-    Nface = total_zones + 1
-    dens_flux_half  = zeros(Nface)
-    mome_flux_half  = zeros(Nface)
-    ener_flux_half  = zeros(Nface)
+    # Allocate U_half as a separate copy to avoid overwriting U
+    U_half = ConservativeVariables(
+        copy(U.density_centers),
+        copy(U.momentum_centers),
+        copy(U.total_energy_centers),
+        nothing,
+        nothing, 
+        nothing
+    )
 
-    # Predictor: loop over faces i = ghost_zones … total_zones-ghost_zones
-    for i in ghost_zones:(total_zones - ghost_zones + 1)
-        # convert face index to cell center offsets
-        ic   = i      # right cell
-        il   = i - 1  # left  cell
+    # Predictor step
+    Threads.@threads for i in (ghost_zones + 1):(total_zones - ghost_zones)
+        @inbounds begin
+            ic, il = i, i-1 
 
-        # compute U_half at the face
-        ρ_half = 0.5*(U.density[ic] + U.density[il]) -
-                 (dt/(2*spacing))*(F.dens_flux[ic] - F.dens_flux[il])
-        m_half = 0.5*(U.momentum[ic] + U.momentum[il]) -
-                 (dt/(2*spacing))*(F.mome_flux[ic] - F.mome_flux[il])
-        E_half = 0.5*(U.total_energy[ic] + U.total_energy[il]) -
-                 (dt/(2*spacing))*(F.tot_ener_flux[ic] - F.tot_ener_flux[il])
-
-        u_half = m_half / ρ_half
-        p_half = (γ - 1)*(E_half - 0.5*ρ_half*u_half^2)
-
-        # store half-step flux at face i
-        dens_flux_half[i] = m_half
-        mome_flux_half[i] = m_half*u_half + p_half
-        ener_flux_half[i] = u_half*(E_half + p_half)
+            U_half.density_centers[i] = 0.5*(U.density_centers[ic] + U.density_centers[il]) -
+                                        (dt/(2*spacing))*(F.density_flux[ic] - F.density_flux[il])
+            U_half.momentum_centers[i] = 0.5*(U.momentum_centers[ic] + U.momentum_centers[il]) -
+                                        (dt/(2*spacing))*(F.momentum_flux[ic] - F.momentum_flux[il])
+            U_half.total_energy_centers[i] = 0.5*(U.total_energy_centers[ic] + U.total_energy_centers[il]) -
+                                            (dt/(2*spacing))*(F.total_energy_flux[ic] - F.total_energy_flux[il])
+        end
     end
 
-    # Corrector: update cells i = ghost_zones+1 … total_zones-ghost_zones
-    for i in (ghost_zones+1):(total_zones-ghost_zones)
-        U.density[i]      -= (dt/spacing)*(dens_flux_half[i+1] - dens_flux_half[i])
-        U.momentum[i]     -= (dt/spacing)*(mome_flux_half[i+1] - mome_flux_half[i])
-        U.total_energy[i] -= (dt/spacing)*(ener_flux_half[i+1] - ener_flux_half[i])
+    # Reconstruct primitive variables from U_half
+    W_half = PrimitiveVariables(
+        copy(U_half.density_centers),
+        U_half.momentum_centers ./ U_half.density_centers,
+        zeros(length(U_half.density_centers)),
+        zeros(length(U_half.density_centers)),
+        nothing, nothing, nothing, nothing
+    )
+    W_half.pressure_centers .= (γ - 1) .* (U_half.total_energy_centers .- 0.5 .* U_half.density_centers .* W_half.velocity_centers .^ 2)
+    W_half.internal_energy_centers .= W_half.pressure_centers ./ ((γ-1) .* U_half.density_centers)
+
+    apply_boundary_conditions(UserInput, U_half, _grid)
+
+    # Compute F_half from U_half
+    F_half = FluxVariables(
+        U_half.momentum_centers,
+        U_half.momentum_centers .* W_half.velocity_centers .+ W_half.pressure_centers,
+        W_half.velocity_centers .* (U_half.total_energy_centers .+ W_half.pressure_centers)
+    )
+   
+
+    # Corrector step
+    Threads.@threads for i in (ghost_zones+1):(total_zones-ghost_zones)
+        @inbounds begin
+            U.density_centers[i]      -= (dt/spacing)*(F_half.density_flux[i+1] - F_half.density_flux[i])
+            U.momentum_centers[i]     -= (dt/spacing)*(F_half.momentum_flux[i+1] - F_half.momentum_flux[i])
+            U.total_energy_centers[i] -= (dt/spacing)*(F_half.total_energy_flux[i+1] - F_half.total_energy_flux[i])
+        end
     end
 
+    # Final boundary conditions on updated U
+    apply_boundary_conditions(UserInput, U, _grid)
 end
+
 
