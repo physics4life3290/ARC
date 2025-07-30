@@ -1,43 +1,46 @@
 
-
+using BenchmarkTools
 
 
 
 function run_Shock_Tube_Benchmark(UserInput)
-    println("The run_Shock_Tube function has been created and called successfully!")
     
     if UserInput.primary_input.dimension == 1
         zones = parse(Int, UserInput.secondary_input.zones)
         ghost_zones = parse(Int, UserInput.secondary_input.ghost_zones)
         grid_center = UserInput.secondary_input.grid_center
         
+        init_grid = time()
         _grid = Construct1DCartesian(UserInput.secondary_input.domain, zones, ghost_zones, grid_center, "cm")
-        println("The grid has been successfully created!")
+        final_grid = time()
+
+        init_time_step = time()
         pressures = [state.P for state in UserInput.secondary_input.sod_states]
         densities = [state.ρ for state in UserInput.secondary_input.sod_states]
-
         c = sqrt(UserInput.secondary_input.γ * maximum(pressures) / maximum(densities))
         dt = UserInput.secondary_input.cfl * _grid.xcoord.spacing / c
+        final_time_step = time()
 
+        init_prim_vars = time()
         W = Construct1DShockTubePrimitives(_grid, UserInput)
+        final_prim_vars = time()
         
+        init_conserv_vars = time()
         U = ConservativeVariables(W.density_centers, W.density_centers.* W.velocity_centers, W.density_centers .* (W.internal_energy_centers .+ W.pressure_centers ./ (W.density_centers .* (UserInput.secondary_input.γ - 1)) .+ W.velocity_centers.^2 ./ 2), nothing, nothing, nothing)
+        final_conserv_vars = time()
 
         F = FluxVariables(zeros(length(U.density_centers)), 
                 zeros(length(U.density_centers)),
                 zeros(length(U.density_centers)))
-        #F = FluxVariables(U.momentum_centers, 
-        #        U.momentum_centers .* W.velocity_centers .+ W.pressure_centers,
-        #        W.velocity_centers .* (U.total_energy_centers .+ W.pressure_centers))
 
         counter = 0
         t = 0.0
         t_final = parse(Float64, UserInput.secondary_input.t_final)
 
+        init_evolution = time()
         while t < t_final
             t += dt
             counter += 1
-
             apply_boundary_conditions(UserInput, U, _grid)
 
             F.density_flux .= U.momentum_centers 
@@ -78,5 +81,13 @@ function run_Shock_Tube_Benchmark(UserInput)
             dt = UserInput.secondary_input.cfl * _grid.xcoord.spacing / max(maxspeed, 1e-6)
             
         end
+        final_evolution = time()
+
+        benchmark_log = open("Benchmark_Results.txt", "w")
+        write(benchmark_log, "The time to create the grid is: $(final_grid - init_grid)
+The time to calculate the time step is: $(final_time_step - init_time_step)
+The time to configure the Primitive and Conservative vars are: $(final_prim_vars - init_prim_vars), $(final_conserv_vars - init_conserv_vars)
+The time it takes for the whole evolution is: $(final_evolution - init_evolution)")
+            close(benchmark_log)
     end
 end

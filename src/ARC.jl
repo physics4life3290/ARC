@@ -45,6 +45,7 @@ include("grids/_1Dimension/Construct1DSpherical.jl")
 include("grids/_2Dimension/Construct2DCartesian.jl")
 include("grids/_2Dimension/Construct2DSpherical.jl")
 
+include("grids/boundary_conditions/dispatch_boundary_condition.jl")
 include("grids/boundary_conditions/outflow.jl")
 include("grids/boundary_conditions/reflecting.jl")
 include("grids/boundary_conditions/periodic.jl")
@@ -76,9 +77,7 @@ export Richtmyer_Step
 #export solve_star_region
 #export sample_xi
 export plot_snapshot
-
-
-
+export animate_snapshots
 
 function run_simulation()
 

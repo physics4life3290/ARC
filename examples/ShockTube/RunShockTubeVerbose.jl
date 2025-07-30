@@ -1,18 +1,90 @@
+using Dates
+using Printf
 
 
+function write_ShockTube_Log(UserInput, ShockTubeLog)
+    write(ShockTubeLog, "
+            #======================================#
+            #   Sod Shock Tube / Riemann Problem   #
+            #======================================#")
 
+    write(ShockTubeLog, "
+    
+    User Defined Parameters:
 
+                    Primary Input
+
+        Problem               = $(UserInput.primary_input.problem)
+        Dimension             = $(UserInput.primary_input.dimension)
+        Coordinate System     = $(UserInput.primary_input.coord_sys)
+        Solver                = $(UserInput.primary_input.solver)
+        Boundary Conditions   = $(UserInput.primary_input.boundary_condition)
+    
+                    Secondary Input
+                
+        Domain                = $(UserInput.secondary_input.domain)
+        Grid Center           = $(UserInput.secondary_input.grid_center)
+        # of zones            = $(UserInput.secondary_input.zones)
+        # of ghost zones      = $(UserInput.secondary_input.ghost_zones)
+        Left Boundary         = $(UserInput.secondary_input.x_min)
+        Right Boundary        = $(UserInput.secondary_input.x_max)
+        # of States           = $(length(UserInput.secondary_input.wall_positions) + 1)
+        # of walls            = $(length(UserInput.secondary_input.wall_positions))
+        
+                                ρ,   u,   P \n")
+
+    for i in 1:(length(UserInput.secondary_input.wall_positions)+1)
+        write(ShockTubeLog, "        State $i: $(UserInput.secondary_input.sod_states[i])\n")
+    end
+
+    write(ShockTubeLog, "\n")
+    for i in 1:(length(UserInput.secondary_input.wall_positions))
+        write(ShockTubeLog, "        Wall position $i: $(UserInput.secondary_input.wall_positions[i])\n")
+    end
+
+    write(ShockTubeLog, "\n        Adiabatic Constant    = $(UserInput.secondary_input.γ)
+        Courant #             = $(UserInput.secondary_input.cfl)
+        Final Time            = $(UserInput.secondary_input.t_final)")
+end
+
+function write_State_ShockTube_log(_grid, W, U, F, ShockTubeLog)
+    iters = length(_grid.xcoord.all_centers)
+    write(ShockTubeLog, "\n                         Primitive Variables                                 Conservative Variables                         Flux Variables")
+    write(ShockTubeLog, "\n   Radius        Density     Velocity     Pressure    Int. Energy        Density     Momentum    Tot.Energy         Density     Momentum    Tot.Energy\n")
+    for i in 1:iters
+        write(ShockTubeLog, @sprintf("%.6e %.6e %.6e %.6e %.6e     %.6e %.6e %.6e     %.6e %.6e %.6e\n",
+        _grid.xcoord.all_centers[i],
+        W.density_centers[i],
+        W.velocity_centers[i],
+        W.pressure_centers[i],
+        W.internal_energy_centers[i], 
+        U.density_centers[i],
+        U.momentum_centers[i],
+        U.total_energy_centers[i],
+        F.density_flux[i],
+        F.momentum_flux[i],
+        F.total_energy_flux[i]))
+    end
+end
 
 function run_Shock_Tube_Verbose(UserInput)
+
     println("The run_Shock_Tube function has been created and called successfully!")
-    h5_filename = UserInput.primary_input.filename
+    h5_filename = UserInput.primary_input.filename * ".h5"
+
+    ShockTubeLog = open(UserInput.primary_input.filename * ".txt", "w")
+    # This is a function
+    
+    write_ShockTube_Log(UserInput, ShockTubeLog)
+    
     if UserInput.primary_input.dimension == 1
         zones = parse(Int, UserInput.secondary_input.zones)
         ghost_zones = parse(Int, UserInput.secondary_input.ghost_zones)
         grid_center = UserInput.secondary_input.grid_center
         
         _grid = Construct1DCartesian(UserInput.secondary_input.domain, zones, ghost_zones, grid_center, "cm")
-        println("The grid has been successfully created!")
+        println(ShockTubeLog, "\nThe grid has been successfully created!")
+
         pressures = [state.P for state in UserInput.secondary_input.sod_states]
         densities = [state.ρ for state in UserInput.secondary_input.sod_states]
 
@@ -26,13 +98,13 @@ function run_Shock_Tube_Verbose(UserInput)
         F = FluxVariables(zeros(length(U.density_centers)), 
                 zeros(length(U.density_centers)),
                 zeros(length(U.density_centers)))
-        #F = FluxVariables(U.momentum_centers, 
-        #        U.momentum_centers .* W.velocity_centers .+ W.pressure_centers,
-        #        W.velocity_centers .* (U.total_energy_centers .+ W.pressure_centers))
 
         counter = 0
         t = 0.0
         t_final = parse(Float64, UserInput.secondary_input.t_final)
+        
+        # This is a function
+        write_State_ShockTube_log(_grid, W, U, F, ShockTubeLog)
 
         while t < t_final
             t += dt
@@ -77,6 +149,9 @@ function run_Shock_Tube_Verbose(UserInput)
             maxspeed = maximum(wavespeed)
             dt = UserInput.secondary_input.cfl * _grid.xcoord.spacing / max(maxspeed, 1e-6)
            
+            write(ShockTubeLog, "\n\n Step: $(counter), Time Step: $(dt), Elapsed Time: $(t)")
+            write_State_ShockTube_log(_grid, W, U, F, ShockTubeLog)
+            write(ShockTubeLog, "\n")
 
             
             if counter % 1 == 0
@@ -107,5 +182,8 @@ function run_Shock_Tube_Verbose(UserInput)
             end
             
         end
+
     end
+    close(ShockTubeLog)
+
 end

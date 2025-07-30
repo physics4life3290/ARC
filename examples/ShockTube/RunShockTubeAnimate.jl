@@ -89,7 +89,7 @@ function run_Shock_Tube_Animate(UserInput)
            
 
             
-            if counter % 1 == 0
+            if counter % 10 == 0
                 groupname = "step_$(counter)"
                 println("Saving snapshot to $h5_filename in group $groupname")
                 mode = isfile(h5_filename) ? "r+" : "w"
