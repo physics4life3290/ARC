@@ -3,13 +3,15 @@
 
 
 
-function RichtmyerStep!(U::ConservativeVariables,
+function RichtmyerStep!(W, U::ConservativeVariables,
                         F::FluxVariables,
                         _grid::CartesianGrid1D,
                         UserInput,
                         dt::Float64,
                         ghost_zones, total_zones, spacing, γ)
 
+    CalculateFlux!(W, U,F)
+    
     # Allocate U_half as a separate copy to avoid overwriting U
     U_half = ConservativeVariables(
         copy(U.density_centers),

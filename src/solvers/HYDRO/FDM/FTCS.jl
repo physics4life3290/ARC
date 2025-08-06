@@ -4,7 +4,7 @@
 
 
 #FTCS Method 
-function FTCS_Step!(U::ConservativeVariables,
+function FTCS_Step!(W, U::ConservativeVariables,
                     F::FluxVariables,
                     dt::Float64,
                     ghost_zones::Int,
@@ -13,7 +13,7 @@ function FTCS_Step!(U::ConservativeVariables,
 
     # 1) copy old solution
     U_old = deepcopy(U)
-
+    CalculateFlux!(W, U_old, F)
     # 2) compute new solution from old
     Threads.@threads for i in (ghost_zones+1):(total_zones-ghost_zones)
         @inbounds begin

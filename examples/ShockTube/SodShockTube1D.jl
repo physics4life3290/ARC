@@ -8,9 +8,12 @@ function Construct1DShockTubePrimitives(_grid::CartesianGrid1D, UserInput)
     wall_positions = sort(UserInput.secondary_input.wall_positions)
     wall_iters = length(wall_positions)
     iters = _grid.xcoord.total_zones
-    W = PrimitiveVariables(zeros(iters), zeros(iters), zeros(iters), zeros(iters), nothing, nothing, nothing, nothing)   
-
-    @inbounds for i in 1:iters
+    if UserInput.primary_input.solver == :FTCS || UserInput.primary_input.solver == :LaxFriedrichs || UserInput.primary_input.solver == :Richtmyer
+        W = PrimitiveVariables(zeros(iters), zeros(iters), zeros(iters), zeros(iters), nothing, nothing, nothing, nothing)   
+    elseif UserInput.primary_input.solver == :GodunovsScheme
+        W = PrimitiveVariables(zeros(iters), zeros(iters), zeros(iters), zeros(iters), zeros(iters), zeros(iters), zeros(iters), zeros(iters)) 
+    end
+        @inbounds for i in 1:iters
         x = _grid.xcoord.all_centers[i]
 
         region_idx = 0

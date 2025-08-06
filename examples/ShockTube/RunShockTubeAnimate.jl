@@ -19,18 +19,13 @@ function run_Shock_Tube_Animate(UserInput)
         c = sqrt(UserInput.secondary_input.γ * maximum(pressures) / maximum(densities))
         dt = UserInput.secondary_input.cfl * _grid.xcoord.spacing / c
 
-
-
         W = Construct1DShockTubePrimitives(_grid, UserInput)
         
-        U = ConservativeVariables(W.density_centers, W.density_centers.* W.velocity_centers, W.density_centers .* (W.internal_energy_centers .+ W.pressure_centers ./ (W.density_centers .* (UserInput.secondary_input.γ - 1)) .+ W.velocity_centers.^2 ./ 2), nothing, nothing, nothing)
-
+        U = ConservativeVariables(W.density_centers, W.density_centers.* W.velocity_centers, W.density_centers .* (W.internal_energy_centers .+ W.pressure_centers ./ (W.density_centers .* (UserInput.secondary_input.γ - 1)) .+ W.velocity_centers.^2 ./ 2), zeros(length(W.density_centers)), zeros(length(W.density_centers)), zeros(length(W.density_centers)))
+        
         F = FluxVariables(zeros(length(U.density_centers)), 
                 zeros(length(U.density_centers)),
                 zeros(length(U.density_centers)))
-        #F = FluxVariables(U.momentum_centers, 
-        #        U.momentum_centers .* W.velocity_centers .+ W.pressure_centers,
-        #        W.velocity_centers .* (U.total_energy_centers .+ W.pressure_centers))
 
         counter = 0
         t = 0.0
@@ -40,29 +35,29 @@ function run_Shock_Tube_Animate(UserInput)
             t += dt
             counter += 1
             if UserInput.primary_input.mode == :Animate
-                plot(title="Sod Shock Tube at t=$(t) s", xlabel="Position (cm)", ylabel="Density, Velocity, Pressure, Internal Energy", legend=:topright)
+                if counter % 5 == 0
+                    plot(title="Sod Shock Tube at t=$(t) s", xlabel="Position (cm)", ylabel="Density, Velocity, Pressure, Internal Energy", legend=:topright)
 
-                println("Step ", counter, " Time: ", t)
-                plot!(_grid.xcoord.all_centers, W.density_centers, label="Density")
-                plot!(_grid.xcoord.all_centers, W.velocity_centers, label="Velocity")
-                plot!(_grid.xcoord.all_centers, W.pressure_centers, label="Pressure")
-                plot!(_grid.xcoord.all_centers, W.internal_energy_centers, label="Internal Energy")
+                    println("Step ", counter, " Time: ", t)
+                    plot!(_grid.xcoord.all_centers, W.density_centers, label="Density")
+                    plot!(_grid.xcoord.all_centers, W.velocity_centers, label="Velocity")
+                    plot!(_grid.xcoord.all_centers, W.pressure_centers, label="Pressure")
+                    plot!(_grid.xcoord.all_centers, W.internal_energy_centers, label="Internal Energy")
+                end
             end
             apply_boundary_conditions(UserInput, U, _grid)
 
-            F.density_flux .= U.momentum_centers 
-            F.momentum_flux .= U.momentum_centers .* W.velocity_centers .+ W.pressure_centers
-            F.total_energy_flux .= W.velocity_centers .* (U.total_energy_centers .+ W.pressure_centers)
-
             if UserInput.primary_input.solver == :FTCS
-                FTCS_Step!(U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
+                FTCS_Step!(W, U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
             elseif UserInput.primary_input.solver == :LaxFriedrichs
-                LaxFriedrichs_Step(U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
+                LaxFriedrichs_Step(W, U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
             elseif UserInput.primary_input.solver == :Richtmyer
-                RichtmyerStep!(U, F, _grid, UserInput,dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing, UserInput.secondary_input.γ)
+                RichtmyerStep!(W, U, F, _grid, UserInput,dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing, UserInput.secondary_input.γ)
+            elseif UserInput.primary_input.solver == :GodunovsScheme
+                Godunov_Step!(UserInput, _grid, W, U)
             else 
                 println("Defaulting to Lax until Scheme requested is supported...")
-                LaxFriedrichs_Step(U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
+                LaxFriedrichs_Step(W, U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
             end
 
             W.density_centers .= U.density_centers
@@ -72,22 +67,22 @@ function run_Shock_Tube_Animate(UserInput)
             
 
             # This Clamping is for oscillatory schemes like FTCS and Richtmyer
-            @inbounds for i in 1:_grid.xcoord.total_zones
-                if W.pressure_centers[i] < 0.0
-                    W.pressure_centers[i] = 0.0
-                elseif W.density_centers[i] < 0.0
-                    W.density_centers[i] = 0.0
-                elseif W.internal_energy_centers[i] < 0.0
-                    W.internal_energy_centers[i] = 0.0   
+            Threads.@threads for i in 1:_grid.xcoord.total_zones
+                @inbounds begin
+                    if W.pressure_centers[i] < 0.0
+                        W.pressure_centers[i] = 0.0
+                    elseif W.density_centers[i] < 0.0
+                        W.density_centers[i] = 0.0
+                    elseif W.internal_energy_centers[i] < 0.0
+                        W.internal_energy_centers[i] = 0.0   
+                    end
                 end
             end
-
+            
             cs = sqrt.(UserInput.secondary_input.γ .* W.pressure_centers ./ W.density_centers)
             wavespeed = abs.(W.velocity_centers) .+ cs
             maxspeed = maximum(wavespeed)
             dt = UserInput.secondary_input.cfl * _grid.xcoord.spacing / max(maxspeed, 1e-6)
-           
-
             
             if counter % 10 == 0
                 groupname = "step_$(counter)"
@@ -118,7 +113,7 @@ function run_Shock_Tube_Animate(UserInput)
             
         end
         if UserInput.primary_input.mode == :Animate 
-            gif(anim, UserInput.primary_input.filename * ".gif", fps=120)   
+            gif(anim, UserInput.primary_input.filename * ".gif", fps=60)   
         end
     end
 end

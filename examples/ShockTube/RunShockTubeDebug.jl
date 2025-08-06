@@ -45,14 +45,16 @@ function run_Shock_Tube_Debug(UserInput)
             F.total_energy_flux .= W.velocity_centers .* (U.total_energy_centers .+ W.pressure_centers)
 
             if UserInput.primary_input.solver == :FTCS
-                FTCS_Step!(U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
+                FTCS_Step!(W, U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
             elseif UserInput.primary_input.solver == :LaxFriedrichs
-                LaxFriedrichs_Step(U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
+                LaxFriedrichs_Step(W, U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
             elseif UserInput.primary_input.solver == :Richtmyer
-                RichtmyerStep!(U, F, _grid, UserInput,dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing, UserInput.secondary_input.γ)
+                RichtmyerStep!(W, U, F, _grid, UserInput,dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing, UserInput.secondary_input.γ)
+            elseif UserInput.primary_input.solver == :GodunovsScheme
+                Godunov_Step!(UserInput, _grid, W, U)
             else 
                 println("Defaulting to Lax until Scheme requested is supported...")
-                LaxFriedrichs_Step(U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
+                LaxFriedrichs_Step(W, U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
             end
 
             W.density_centers .= U.density_centers

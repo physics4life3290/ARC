@@ -26,9 +26,6 @@ function run_Shock_Tube_Standard(UserInput)
         F = FluxVariables(zeros(length(U.density_centers)), 
                 zeros(length(U.density_centers)),
                 zeros(length(U.density_centers)))
-        #F = FluxVariables(U.momentum_centers, 
-        #        U.momentum_centers .* W.velocity_centers .+ W.pressure_centers,
-        #        W.velocity_centers .* (U.total_energy_centers .+ W.pressure_centers))
 
         counter = 0
         t = 0.0
@@ -39,20 +36,18 @@ function run_Shock_Tube_Standard(UserInput)
             counter += 1
 
             apply_boundary_conditions(UserInput, U, _grid)
-
-            F.density_flux .= U.momentum_centers 
-            F.momentum_flux .= U.momentum_centers .* W.velocity_centers .+ W.pressure_centers
-            F.total_energy_flux .= W.velocity_centers .* (U.total_energy_centers .+ W.pressure_centers)
-
+            
             if UserInput.primary_input.solver == :FTCS
-                FTCS_Step!(U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
+                FTCS_Step!(W, U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
             elseif UserInput.primary_input.solver == :LaxFriedrichs
-                LaxFriedrichs_Step(U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
+                LaxFriedrichs_Step(W, U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
             elseif UserInput.primary_input.solver == :Richtmyer
-                RichtmyerStep!(U, F, _grid, UserInput,dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing, UserInput.secondary_input.γ)
+                RichtmyerStep!(W, U, F, _grid, UserInput,dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing, UserInput.secondary_input.γ)
+            elseif UserInput.primary_input.solver == :GodunovsScheme
+                Godunov_Step!(UserInput, _grid, W, U)
             else 
                 println("Defaulting to Lax until Scheme requested is supported...")
-                LaxFriedrichs_Step(U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
+                LaxFriedrichs_Step(W, U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
             end
 
             W.density_centers .= U.density_centers
@@ -60,7 +55,6 @@ function run_Shock_Tube_Standard(UserInput)
             W.pressure_centers .= (UserInput.secondary_input.γ - 1) .* (U.total_energy_centers .- 0.5 .* U.density_centers .* W.velocity_centers .^ 2)
             W.internal_energy_centers .= U.total_energy_centers ./ U.density_centers .- 0.5 .* W.velocity_centers .^ 2
             
-
             # This Clamping is for oscillatory schemes like FTCS and Richtmyer
             @inbounds for i in 1:_grid.xcoord.total_zones
                 if W.pressure_centers[i] < 0.0
@@ -77,8 +71,6 @@ function run_Shock_Tube_Standard(UserInput)
             maxspeed = maximum(wavespeed)
             dt = UserInput.secondary_input.cfl * _grid.xcoord.spacing / max(maxspeed, 1e-6)
            
-
-            
             if counter % 1 == 0
                 groupname = "step_$(counter)"
                 println("Saving snapshot to $h5_filename in group $groupname")

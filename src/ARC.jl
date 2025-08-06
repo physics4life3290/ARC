@@ -8,6 +8,7 @@ using ArgParse # For command line argument parsing access
 const MaybeVector{T} = Union{Nothing, Vector{T}}
 
 struct PrimitiveVariables 
+
     density_centers::Vector{Float64}
     velocity_centers::Vector{Float64}
     pressure_centers::Vector{Float64}
@@ -16,15 +17,18 @@ struct PrimitiveVariables
     velocity_faces::MaybeVector{Float64}
     pressure_faces::MaybeVector{Float64}
     internal_energy_faces::MaybeVector{Float64}
+    
 end
 
 struct ConservativeVariables
+
     density_centers::Vector{Float64}
     momentum_centers::Vector{Float64}
     total_energy_centers::Vector{Float64}
     density_faces::MaybeVector{Float64}
     momentum_faces::MaybeVector{Float64}
     total_energy_faces::MaybeVector{Float64}
+
 end
 
 struct FluxVariables
@@ -60,6 +64,7 @@ include("../examples/ShockTube/RunShockTubeVerbose.jl")
 include("solvers/HYDRO/FDM/FTCS.jl")
 include("solvers/HYDRO/FDM/LaxFriedrichs.jl")
 include("solvers/HYDRO/FDM/Richtmyer.jl")
+include("solvers/HYDRO/ExactRiemannSolver.jl")
 
 
 export run_simulation
@@ -72,12 +77,15 @@ export Construct2DSpherical
 export FTCS_Step
 export LaxFriedrichs_Step
 export Richtmyer_Step
-#export guess_pressure
-#export pressure_function
-#export solve_star_region
-#export sample_xi
+export ExactRiemannSolve!
 export plot_snapshot
 export animate_snapshots
+
+function CalculateFlux!(W, U, F)
+    F.density_flux .= U.momentum_centers 
+    F.momentum_flux .= U.momentum_centers .* W.velocity_centers .+ W.pressure_centers
+    F.total_energy_flux .= W.velocity_centers .* (U.total_energy_centers .+ W.pressure_centers)
+end
 
 function run_simulation()
 
