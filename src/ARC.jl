@@ -64,8 +64,10 @@ include("../examples/ShockTube/RunShockTubeVerbose.jl")
 include("solvers/HYDRO/FDM/FTCS.jl")
 include("solvers/HYDRO/FDM/LaxFriedrichs.jl")
 include("solvers/HYDRO/FDM/Richtmyer.jl")
+include("solvers/HYDRO/FVM/GodunovStep.jl")
 include("solvers/HYDRO/ExactRiemannSolver.jl")
-
+include("solvers/HYDRO/RiemannHLL.jl")
+include("solvers/HYDRO/RiemannHLLC.jl")
 
 export run_simulation
 export ConstructUniformAxis
