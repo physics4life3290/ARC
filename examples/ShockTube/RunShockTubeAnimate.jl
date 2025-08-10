@@ -19,8 +19,15 @@ function run_Shock_Tube_Animate(UserInput)
         c = sqrt(UserInput.secondary_input.γ * maximum(pressures) / maximum(densities))
         dt = UserInput.secondary_input.cfl * _grid.xcoord.spacing / c
 
-        W = Construct1DShockTubePrimitives(_grid, UserInput)
-        
+        if UserInput.primary_input.problem == :ShockTube
+            println("Constructing 1D Shock Tube Primitives...")
+            W = Construct1DShockTubePrimitives(_grid, UserInput)
+        elseif UserInput.primary_input.problem == :BlastWave
+            println("Constructing 1D Blast Wave Primitives...")
+            W = Construct1DSedovBlastPrimitives(_grid, UserInput)
+        end
+        plot(_grid.xcoord.all_centers, W.internal_energy_centers)        
+        #=
         U = ConservativeVariables(W.density_centers, W.density_centers.* W.velocity_centers, W.density_centers .* (W.internal_energy_centers .+ W.pressure_centers ./ (W.density_centers .* (UserInput.secondary_input.γ - 1)) .+ W.velocity_centers.^2 ./ 2), zeros(length(W.density_centers)), zeros(length(W.density_centers)), zeros(length(W.density_centers)))
         
         F = FluxVariables(zeros(length(U.density_centers)), 
@@ -32,18 +39,22 @@ function run_Shock_Tube_Animate(UserInput)
         t_final = parse(Float64, UserInput.secondary_input.t_final)
 
         anim = @animate while t < t_final
+
+            c = sqrt.(UserInput.secondary_input.γ .* W.pressure_centers ./ W.density_centers)
+            dt = UserInput.secondary_input.cfl * _grid.xcoord.spacing / maximum(abs.(W.velocity_centers) .+ c)
+            dt = min(dt, t_final - t)
+
             t += dt
             counter += 1
             if UserInput.primary_input.mode == :Animate
-                if counter % 5 == 0
-                    plot(title="Sod Shock Tube at t=$(t) s", xlabel="Position (cm)", ylabel="Density, Velocity, Pressure, Internal Energy", legend=:topright)
-
-                    println("Step ", counter, " Time: ", t)
-                    plot!(_grid.xcoord.all_centers, W.density_centers, label="Density")
-                    plot!(_grid.xcoord.all_centers, W.velocity_centers, label="Velocity")
-                    plot!(_grid.xcoord.all_centers, W.pressure_centers, label="Pressure")
-                    plot!(_grid.xcoord.all_centers, W.internal_energy_centers, label="Internal Energy")
-                end
+                
+                plot(title="Sod Shock Tube at t=$(t) s", xlabel="Position (cm)", ylabel="Density, Velocity, Pressure, Internal Energy", legend=:topright)
+                println("Step ", counter, " Time: ", t)
+                plot!(_grid.xcoord.all_centers, W.density_centers, label="Density")
+                plot!(_grid.xcoord.all_centers, W.velocity_centers, label="Velocity")
+                plot!(_grid.xcoord.all_centers, W.pressure_centers, label="Pressure")
+                plot!(_grid.xcoord.all_centers, W.internal_energy_centers, label="Internal Energy")
+            
             end
             apply_boundary_conditions(UserInput, U, _grid)
 
@@ -54,7 +65,11 @@ function run_Shock_Tube_Animate(UserInput)
             elseif UserInput.primary_input.solver == :Richtmyer
                 RichtmyerStep!(W, U, F, _grid, UserInput,dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing, UserInput.secondary_input.γ)
             elseif UserInput.primary_input.solver == :GodunovsScheme
-                Godunov_Step!(UserInput, _grid, W, U)
+                Godunov_Step!(UserInput, _grid, W, U, dt)
+            elseif UserInput.primary_input.solver == :MUSCL
+                MUSCL_Step!(UserInput, _grid, W, U, dt)
+            elseif UserInput.primary_input.solver == :PPM
+                PPM_Step!(UserInput, _grid, W, U, dt)
             else 
                 println("Defaulting to Lax until Scheme requested is supported...")
                 LaxFriedrichs_Step(W, U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
@@ -79,11 +94,7 @@ function run_Shock_Tube_Animate(UserInput)
                 end
             end
             
-            cs = sqrt.(UserInput.secondary_input.γ .* W.pressure_centers ./ W.density_centers)
-            wavespeed = abs.(W.velocity_centers) .+ cs
-            maxspeed = maximum(wavespeed)
-            dt = UserInput.secondary_input.cfl * _grid.xcoord.spacing / max(maxspeed, 1e-6)
-            
+            #=
             if counter % 10 == 0
                 groupname = "step_$(counter)"
                 println("Saving snapshot to $h5_filename in group $groupname")
@@ -110,10 +121,12 @@ function run_Shock_Tube_Animate(UserInput)
                 end
                 
             end
+            =#
             
         end
         if UserInput.primary_input.mode == :Animate 
             gif(anim, UserInput.primary_input.filename * ".gif", fps=60)   
         end
+        =#
     end
 end

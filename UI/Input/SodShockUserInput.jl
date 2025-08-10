@@ -29,14 +29,8 @@ function get_wall_positions(num_states::Int, x_min::Float64, x_max::Float64)
     end
 end
 
-struct FluidState
-    ρ::Float64
-    u::Float64
-    P::Float64
-end
-
-function get_states_structured(num_states::Int)
-    states = Vector{FluidState}(undef, num_states)
+function get_ShockTube_states_structured(num_states::Int)
+    states = Vector{PrimitiveVariables}(undef, num_states)  
 
     println("Enter density (ρ), velocity (u), and pressure (P) for each of the $num_states states.")
     for i in 1:num_states
@@ -55,7 +49,7 @@ function get_states_structured(num_states::Int)
                 continue
             end
 
-            states[i] = FluidState(values[1], values[2], values[3])
+            states[i] = PrimitiveVariables(values[1], values[2], values[3], nothing, nothing, nothing, nothing, nothing)
             break
         end
     end
@@ -63,33 +57,18 @@ function get_states_structured(num_states::Int)
     return states
 end
 
-function _1DSODUserInput(primary_input)
-    println("Please input the length of the box...")
-    domain_length = readline()
-    domain_length = parse(Float64, domain_length)
-    println("Please input grid center...")
-    grid_center = readline()
-    grid_center = parse(Float64, grid_center)
-    println("Please input the number of grid points...")
-    zones = readline()
-    println("Please input the number of ghost zones...")
-    ghost_zones = readline()
+function _1DShockTubeUserInput(grid_input)
+
     println("Please input how many states are in the box...")
-    num_of_states = readline()
-    num_of_states = parse(Int, num_of_states)
-    x_min = -1*domain_length/2 + grid_center
-    x_max = domain_length/2 + grid_center
-    wall_positions = get_wall_positions(num_of_states, x_min, x_max)
-    states = get_states_structured(num_of_states)
+    num_of_states = parse(Int, readline())
+
+    wall_positions = get_wall_positions(num_of_states, grid_input.coord_min, grid_input.coord_max)
+
+    states = get_ShockTube_states_structured(num_of_states)
+
     println("Please input an Adiabatic Constant...")
-    adiabat_const = readline()
-    adiabat_const = parse(Float64, adiabat_const)
-    println("Please input the Courant Condition...")
-    CFL = readline()
-    CFL = parse(Float64, CFL)
-    println("Please select the final time...")
-    final_t = readline()      
-    return (domain = domain_length, grid_center = grid_center, zones = zones, 
-    ghost_zones = ghost_zones, x_min = x_min, x_max = x_max, wall_positions = wall_positions, 
-    sod_states = states, γ = adiabat_const, cfl = CFL, t_final = final_t)
+    adiabat_const = parse(Float64, readline())
+
+    return ShockTubeInput(wall_positions, states, adiabat_const)
+
 end

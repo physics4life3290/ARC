@@ -1,0 +1,11 @@
+
+include("utility/UIStructs.jl")
+include("utility/prompt_setup.jl")
+include("initiate_UI.jl")
+include("Input/BlastWaveUserInput.jl")
+include("Input/SodShockUserInput.jl")
+include("Tools/collect_primary_input.jl")
+include("Tools/collect_grid_input.jl")
+include("Tools/collect_solver_input.jl")
+include("Tools/collect_secondary_input.jl")
+

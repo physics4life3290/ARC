@@ -69,6 +69,32 @@ function prompt_choice(prompt::String, options::Vector{Symbol}; allow_exit=true)
     end
 end
 
+function prompt_choice_bool(prompt::String, options::Vector{Bool}; allow_exit=true)
+    while true
+        println(prompt)
+        for (i, opt) in pairs(options)
+            println("$(i). $opt")
+        end
+        if allow_exit
+            println("$(length(options)+1). Exit")
+        end
+
+        print("> ")
+        input = readline()
+        choice = tryparse(Int, input)
+
+        if choice !== nothing && 1 <= choice <= length(options) + (allow_exit ? 1 : 0)
+            if allow_exit && choice == length(options) + 1
+                println("Exiting...")
+                exit()
+            end
+            return options[choice]
+        else
+            println("Invalid input. Please enter a number from the list.")
+        end
+    end
+end
+
 # Prompt for numeric input (unchanged)
 function prompt_number(prompt::String, T=Int)
     while true

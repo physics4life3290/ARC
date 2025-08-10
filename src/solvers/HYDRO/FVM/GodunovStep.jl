@@ -4,11 +4,13 @@
 
 
 
-function Godunov_Step!(UserInput, _grid, W, U)
+function Godunov_Step!(UserInput, _grid, W, U, t)
+
     γ = UserInput.secondary_input.γ
     dx = _grid.xcoord.spacing
     c = sqrt.(UserInput.secondary_input.γ .* W.pressure_centers ./ W.density_centers)
     dt = UserInput.secondary_input.cfl * _grid.xcoord.spacing / maximum(abs.(W.velocity_centers) .+ c)
+    t_final = parse(Float64, UserInput.secondary_input.t_final)
     dt = min(dt, t_final - t)
     nx = _grid.xcoord.total_zones
     # Compute fluxes at interfaces
