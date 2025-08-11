@@ -61,13 +61,11 @@ struct BlastWaveInput
     gamma::Float64
 end
 
-struct SecondaryInput
-    secondaryinput::Union{ShockTubeInput, BlastWaveInput}
-end
+
 
 struct UserInput
     Primary_Input::PrimaryInput
     Grid_Input::GridInput
     Solver_Input::SolverInput
-    Secondary_Input::SecondaryInput
+    Secondary_Input::Union{ShockTubeInput, BlastWaveInput}
 end

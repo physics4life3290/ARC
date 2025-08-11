@@ -46,6 +46,9 @@ function collect_solver_input(primary_input)
         elseif primary_input.solver == :GodunovScheme
             println("Which interface reconstruction?")
             reconstruction = prompt_choice("Choose a reconstruction method: ", reconstructions)
+            if reconstruction == :Constant
+                @warn "Flattening, Steepening, and Limiters are not applicable for Constant Reconstruction and will be ignored..."
+            end
             println("Which Riemann Solver would you like?")
             riemann_solve = prompt_choice("Choose a Riemann Solver: ", riemann_solver_choices)
             return SolverInput(cfl, t_final, flattening, steepening, limiter, reconstruction, riemann_solve)

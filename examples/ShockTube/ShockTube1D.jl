@@ -3,14 +3,14 @@
 
 
 
-function Construct1DShockTubePrimitives(_grid::CartesianGrid1D, UserInput)
+function Construct1DShockTubePrimitives(_grid::CartesianGrid1D, user_input)
 
-    wall_positions = sort(UserInput.secondary_input.wall_positions)
+    wall_positions = sort(user_input.Secondary_Input.wall_positions)
     wall_iters = length(wall_positions)
     iters = _grid.xcoord.total_zones
-    if UserInput.primary_input.solver == :FTCS || UserInput.primary_input.solver == :LaxFriedrichs || UserInput.primary_input.solver == :Richtmyer
+    if user_input.Primary_Input.solver == :FTCS || user_input.Primary_Input.solver == :LaxFriedrichs || user_input.Primary_Input.solver == :Richtmyer
         W = PrimitiveVariables(zeros(iters), zeros(iters), zeros(iters), zeros(iters), nothing, nothing, nothing, nothing)   
-    elseif UserInput.primary_input.solver == :GodunovsScheme || UserInput.primary_input.solver == :MUSCL || UserInput.primary_input.solver == :PPM
+    elseif user_input.Primary_Input.solver == :GodunovScheme 
         W = PrimitiveVariables(zeros(iters), zeros(iters), zeros(iters), zeros(iters), zeros(iters), zeros(iters), zeros(iters), zeros(iters)) 
     end
         @inbounds for i in 1:iters
@@ -38,11 +38,11 @@ function Construct1DShockTubePrimitives(_grid::CartesianGrid1D, UserInput)
             end
         end
         
-        # Now safely index sod_states using region_idx (1-based)
-        ρ = UserInput.secondary_input.sod_states[region_idx].ρ
-        u = UserInput.secondary_input.sod_states[region_idx].u
-        P = UserInput.secondary_input.sod_states[region_idx].P
-        γ = UserInput.secondary_input.γ
+        # Now safely index states using region_idx (1-based)
+        ρ = user_input.Secondary_Input.states[region_idx].density_centers
+        u = user_input.Secondary_Input.states[region_idx].velocity_centers
+        P = user_input.Secondary_Input.states[region_idx].pressure_centers
+        γ = user_input.Secondary_Input.gamma
 
         W.density_centers[i] = ρ
         W.velocity_centers[i] = u

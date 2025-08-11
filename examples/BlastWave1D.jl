@@ -1,33 +1,65 @@
-function Construct1DBlastWavePrimitives(_grid, UserInput)
 
-    dx = _grid.xcoord.spacing
+
+function Construct1DBlastWavePrimitives(_grid::CartesianGrid1D, user_input::UserInput)
+    blast_input = user_input.Secondary_Input  # Should be BlastWaveInput
     
-    ρ = fill(ρ₀, nx)
-    u = zeros(nx)
-    p = fill(p₀, nx)
+    wall_positions = sort(blast_input.wall_positions)
+    wall_iters = length(wall_positions)
+    iters = _grid.xcoord.total_zones
 
-    # Center of the domain
-    
-    xc = parse(Float64, UserInput.secondary_input.grid_center)
+    # Use the states from parameters.states, which define ambient states
+    states = blast_input.parameters.states
+    blasts = blast_input.parameters.blasts
+    γ = blast_input.gamma
 
-    println(UserInput.secondary_input.blast_params)
-
-    #=
-    # Count cells inside the blast radius
-    cells_in_blast = findall(abs.(x .- xc) .<= r₀)
-    total_cells = length(cells_in_blast)
-
-    # Energy per cell in the blast region
-    ΔE = E₀ / total_cells
-
-    # Convert to pressure using p = (γ - 1) * e, with e = energy density
-    for i in cells_in_blast
-        p[i] = (γ - 1.0) * (ΔE / dx)
+    if user_input.Primary_Input.solver == :FTCS || user_input.Primary_Input.solver == :LaxFriedrichs || user_input.Primary_Input.solver == :Richtmyer
+        W = PrimitiveVariables(zeros(iters), zeros(iters), zeros(iters), zeros(iters), nothing, nothing, nothing, nothing)   
+    elseif user_input.Primary_Input.solver == :GodunovScheme 
+        W = PrimitiveVariables(zeros(iters), zeros(iters), zeros(iters), zeros(iters), zeros(iters), zeros(iters), zeros(iters), zeros(iters)) 
     end
 
-    W.density_centers .= ρ
-    W.velocity_centers .= u
-    W.pressure_centers .= p
-    W.internal_energy_centers .= (p / ((UserInput.secondary_input.γ-1)*ρ))
-    =#
+    @inbounds for i in 1:iters
+        x = _grid.xcoord.all_centers[i]
+
+        # Determine region index according to walls
+        region_idx = 0
+        if x <= wall_positions[1]
+            region_idx = 1
+        elseif x > wall_positions[end]
+            region_idx = wall_iters + 1
+        else
+            for j in 1:wall_iters-1
+                if wall_positions[j] < x <= wall_positions[j+1]
+                    region_idx = j + 1
+                    break
+                end
+            end
+            if region_idx == 0
+                error("Unable to assign region index to x = $x")
+            end
+        end
+
+        ρ = states[region_idx].density_centers
+        u = 0.0  # Initial velocity zero
+        P = states[region_idx].pressure_centers
+
+        # Add blast energy pressure boost if inside blast radius
+        for blast in blasts
+            dx = abs(x - blast.center)
+            if dx <= blast.radius
+                # Distribute blast energy as a simple top-hat pressure increase
+                added_e = blast.energy / (2 * blast.radius)  # energy per unit length
+                P += (γ - 1) * added_e
+            end
+        end
+
+        e_int = P / ((γ - 1) * ρ)
+
+        W.density_centers[i] = ρ
+        W.velocity_centers[i] = u
+        W.pressure_centers[i] = P
+        W.internal_energy_centers[i] = e_int
+    end
+
+    return W
 end

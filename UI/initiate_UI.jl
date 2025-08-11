@@ -22,6 +22,7 @@ function initiate_UI()
     solver_input = collect_solver_input(primary_input)
 
     secondary_input = collect_secondary_input(primary_input, grid_input)
-
-    return UserInput(primary_input, grid_input, solver_input, secondary_input)
+    
+    user_input = UserInput(primary_input, grid_input, solver_input, secondary_input)
+    return user_input
 end
