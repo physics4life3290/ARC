@@ -11,3 +11,32 @@ function flattening(W, slope_ρ)
         slope_ρ[i] = slope_ρ[i] * flattening_coef
     end
 end
+
+function compute_flattening_coefficient(var::AbstractVector; ε=1e-10)
+    n = length(var)
+    θ = ones(n)  # start with no flattening (1.0)
+    for i in 2:(n-1)
+        Δp_plus = abs(var[i+1] - var[i])
+        Δp_minus = abs(var[i] - var[i-1])
+        Δp = max(Δp_plus, Δp_minus)
+        p_avg = (abs(var[i+1]) + 2*abs(var[i]) + abs(var[i-1])) / 4
+
+        # Avoid division by zero, ε small number
+        shock_strength = Δp / (p_avg + ε)
+
+        # Thresholds for flattening (tweak these!)
+        if shock_strength > 0.1
+            θ[i] = 0.0  # full flattening near strong shock
+        elseif shock_strength > 0.05
+            θ[i] = 0.5  # partial flattening near moderate gradient
+        else
+            θ[i] = 1.0  # no flattening in smooth regions
+        end
+    end
+
+    # Boundaries: no flattening (or replicate neighbors)
+    θ[1] = θ[2]
+    θ[end] = θ[end-1]
+
+    return θ
+end

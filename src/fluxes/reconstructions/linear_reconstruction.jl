@@ -10,12 +10,14 @@ function compute_slopes(var, limiter_input)
     for i in 2:n-1
         dl = var[i] - var[i-1]
         dr = var[i+1] - var[i]
-        if limiter_input == :minmod
-            slopes[i] = minmod(dl, dr)
-        elseif limiter_input == :superbee
-            slopes[i] = superbee(dl, dr)
-        elseif limiter_input == :vanleer
-            slopes[i] = vanleer(dl, dr)
+        if limiter_input !== nothing 
+            if limiter_input == :minmod
+                slopes[i] = minmod(dl, dr)
+            elseif limiter_input == :superbee
+                slopes[i] = superbee(dl, dr)
+            elseif limiter_input == :vanleer
+                slopes[i] = vanleer(dl, dr)
+            end
         end
     end
     slopes[1] = 0.0

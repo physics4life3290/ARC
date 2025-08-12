@@ -55,25 +55,25 @@ include("grids/boundary_conditions/periodic.jl")
 include("../examples/ShockTube/ShockTube1D.jl")
 include("../examples/BlastWave1D.jl")
 
-include("../Logs/run_log.jl")
+include("../logs/run_log.jl")
 
 include("limiters/minmod.jl")
 include("limiters/vanleer.jl")
 include("limiters/superbee.jl")
 
 include("fluxes/reconstructions/linear_reconstruction.jl")
+include("fluxes/reconstructions/parabolic_reconstruction.jl")
 include("fluxes/reconstructions/steepening.jl")
 include("fluxes/reconstructions/flattening.jl")
 
 include("solvers/HYDRO/FDM/FTCS.jl")
 include("solvers/HYDRO/FDM/LaxFriedrichs.jl")
 include("solvers/HYDRO/FDM/Richtmyer.jl")
-include("solvers/HYDRO/FVM/GodunovStep.jl")
-include("solvers/HYDRO/FVM/MUSCL.jl")
-#include("solvers/HYDRO/FVM/PPM.jl")
-include("solvers/HYDRO/ExactRiemannSolver.jl")
-include("solvers/HYDRO/RiemannHLL.jl")
-include("solvers/HYDRO/RiemannHLLC.jl")
+include("solvers/HYDRO/FVM/GodunovScheme.jl")
+
+include("fluxes/riemann_solvers/ExactRiemannSolver.jl")
+include("fluxes/riemann_solvers/RiemannHLL.jl")
+include("fluxes/riemann_solvers/RiemannHLLC.jl")
 
 export run_simulation
 export ConstructUniformAxis
@@ -85,6 +85,8 @@ export Construct2DSpherical
 export FTCS_Step
 export LaxFriedrichs_Step
 export Richtmyer_Step
+export Riemann_HLL
+export Riemann_HLLC
 export ExactRiemannSolve!
 export Godunov_Step!
 export MUSCL_Step!

@@ -21,3 +21,34 @@ function steepening(ρ, p, slope, iters)
     
     return slope
 end
+
+function compute_steepening_coefficient(density::AbstractVector, pressure::AbstractVector; ε=1e-10)
+    n = length(density)
+    β = zeros(n)  # start with no steepening
+
+    for i in 2:(n-1)
+        Δρ = abs(density[i+1] - density[i-1])
+        Δp = abs(pressure[i+1] - pressure[i-1])
+        ρ_avg = (density[i+1] + 2*density[i] + density[i-1]) / 4
+        p_avg = (pressure[i+1] + 2*pressure[i] + pressure[i-1]) / 4
+
+        # Normalize gradients
+        grad_ρ = Δρ / (ρ_avg + ε)
+        grad_p = Δp / (p_avg + ε)
+
+        # Heuristic for contact: large density gradient but small pressure gradient
+        if grad_ρ > 0.1 && grad_p < 0.05
+            β[i] = 1.0
+        elseif grad_ρ > 0.05 && grad_p < 0.1
+            β[i] = 0.5
+        else
+            β[i] = 0.0
+        end
+    end
+
+    # Boundaries: no steepening
+    β[1] = β[2]
+    β[end] = β[end-1]
+
+    return β
+end
