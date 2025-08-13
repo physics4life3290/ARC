@@ -61,7 +61,7 @@ function GodunovStep!(user_input, _grid, W, U, dt)
     Threads.@threads for i in 2:nx
         @inbounds begin
             if user_input.Solver_Input.riemanntype == :HLL
-                f1, f2, f3 = Riemann_HLL(ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i])
+                f1, f2, f3 = Riemann_HLL(ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], γ)
             elseif user_input.Solver_Input.riemanntype == :HLLC
                 f1, f2, f3 = Riemann_HLLC(ρR[i-1], uR[i-1], pR[i-1], ρL[i], uL[i], pL[i], γ)
             elseif user_input.Solver_Input.riemanntype == :Exact

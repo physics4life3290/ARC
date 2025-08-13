@@ -3,7 +3,7 @@
 
 
 
-function Riemann_HLL(ρL, uL, pL, ρR, uR, pR)
+function Riemann_HLL(ρL, uL, pL, ρR, uR, pR, γ)
     # Toro's method - simplified pressure estimate
     p_star = max(1e-6, 0.5 * (pL + pR) - 0.125 * (uR - uL) * (ρL + ρR))
     u_star = 0.5 * (uL + uR) + 0.5 * (pL - pR) / (ρL + ρR)
