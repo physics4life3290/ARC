@@ -1,148 +1,243 @@
-# ---------------------------
-# Utility Functions
-# ---------------------------
 
-function newton_raphson(f, df, x0; tol=1e-8, maxiter=1000)
-    x = x0
-    for _ in 1:maxiter
-        fx, dfx = f(x), df(x)
-        abs(dfx) < eps() && error("Derivative too close to zero.")
-        dx = fx / dfx
-        x -= dx
-        abs(dx) < tol && return x
+
+
+include("../../solvers/Iterative/NewtonRaphson.jl")
+#using Plots
+
+
+cs(γ, p, ρ) = sqrt(γ * p / ρ)
+
+function wave_function(p, state, γ)
+    ρ, u, p_i = state
+    a = cs(γ, p_i, ρ)
+     
+    if p > p_i
+        # Shock
+        A = 2.0 / ((γ + 1.0) * ρ)
+        B = (γ - 1.0) / (γ + 1.0) * p_i
+        sqrt_term = sqrt(A / (p + B))
+        f  = (p - p_i) * sqrt_term
+        df = sqrt_term * (1.0 - 0.5 * (p - p_i) / (p + B))
+        return f, df
+    else
+        # Rarefaction
+        pr = p / p_i
+        expo = (γ - 1.0) / (2.0 * γ)
+        f  = (2.0 * a / (γ - 1.0)) * (pr^expo - 1.0)
+        df = (1.0 / (ρ * a)) * pr^(-(γ + 1.0) / (2.0 * γ))
+        return f, df
     end
-    error("Newton-Raphson did not converge.")
 end
 
-function sound_speed(γ, p, ρ)
-    sqrt(γ * p / ρ)
+# ---------------------------------------
+# Pressure Estimates for Riemann Solvers
+# ---------------------------------------
+
+# Initial guess (PVRS)
+function PVRS_guess(ρL, uL, pL, ρR, uR, pR, γ)
+    aL, aR = cs(γ, pL, ρL), cs(γ, pR, ρR)
+    p̃ = 0.5 * (pL + pR) - 0.125 * (uR - uL) * (ρL + ρR) * (aL + aR)
+    p0 = max(1e-8, p̃)
+    return p0
 end
 
-function shock_coefficients(ρ, p, γ)
-    A = 2 / ((γ+1) * ρ)
-    B = (γ-1) / (γ+1) * p
-    return A, B
+# Two-Rarefaction Approximate Pressure (Toro Eq. 4.44)
+function two_rarefaction_pressure(ρL, uL, pL, ρR, uR, pR, γ)
+    cL = sqrt(γ * pL / ρL)
+    cR = sqrt(γ * pR / ρR)
+
+    numerator = cL + cR - 0.5 * (γ - 1) * (uR - uL)
+    denominator = cL / pL^((γ - 1) / (2γ)) + cR / pR^((γ - 1) / (2γ))
+
+    p_pv = (numerator / denominator)^(2γ / (γ - 1))
+    return max(1e-8, p_pv) # positivity safeguard
 end
 
-# ---------------------------
-# Pressure Guess and Functions
-# ---------------------------
+# Two-Shock Approximate Pressure (Toro Eq. 4.47)
+function two_shock_pressure(ρL, uL, pL, ρR, uR, pR, γ)
+    cL = sqrt(γ * pL / ρL)
+    cR = sqrt(γ * pR / ρR)
 
-function pressure_function(p_star, states, γ)
-    ρL, uL, pL, ρR, uR, pR = states
+    # Shock impedance factors (Eq. 4.47)
+    gL = sqrt((2 / ((γ + 1) * ρL)) / (pL + (γ - 1) / (γ + 1) * pL))
+    gR = sqrt((2 / ((γ + 1) * ρR)) / (pR + (γ - 1) / (γ + 1) * pR))
 
-    f(p, ρ, u, p₀) = begin
-        if p > p₀
-            A, B = shock_coefficients(ρ, p₀, γ)
-            return (p - p₀) * sqrt(A / (p + B))
+    numerator = gL * pL + gR * pR - (uR - uL)
+    denominator = gL + gR
+
+    p_ts = numerator / denominator
+    return max(1e-8, p_ts) # positivity safeguard
+end
+
+function solve_star_pressure(ρL, uL, pL, ρR, uR, pR, γ; tol=1e-12, maxiter=10000)
+
+    p0 = PVRS_guess(ρL, uL, pL, ρR, uR, pR, γ)
+
+    f(p) = (wave_function(p, (ρL, uL, pL), γ)[1] + wave_function(p, (ρR, uR, pR), γ)[1] + (uR - uL))
+    df(p) = (wave_function(p, (ρL, uL, pL), γ)[2] + wave_function(p, (ρR, uR, pR), γ)[2])
+
+    pstar, converged, niter = newton_raphson(f, df, p0; tol=tol, maxiter=maxiter)
+    
+    if !converged
+        @warn "Negative star pressure p* = $pstar, trying another guess"
+        p0 = two_rarefaction_pressure(ρL, uL, pL, ρR, uR, pR, γ)
+        pstar, converged, niter = newton_raphson(f, df, p0; tol=tol, maxiter=maxiter)
+        if !converged
+            @warn "Negative star pressure p* = $pstar, trying final guess"
+            p0 = two_shock_pressure(ρL, uL, pL, ρR, uR, pR, γ)
+            pstar, converged, niter = newton_raphson(f, df, p0; tol=tol, maxiter=maxiter)
+            if !converged
+                error("Newton–Raphson failed to converge after multiple attempts with p* = $pstar")
+            end
         else
-            return (2 * sound_speed(γ, p₀, ρ) / (γ - 1)) * ((p / p₀)^((γ - 1) / (2 * γ)) - 1)
+            error("Negative star pressure p* = $pstar, unable to find valid solution check input...")
         end
     end
 
-    return f(p_star, ρL, uL, pL) + f(p_star, ρR, uR, pR) + uR - uL
+
+    # Compute velocity in the star region
+    fL, _ = wave_function(pstar, (ρL, uL, pL), γ)
+    fR, _ = wave_function(pstar, (ρR, uR, pR), γ)
+    ustar = 0.5 * (uL + uR) + 0.5 * (fR - fL)
+
+    return pstar, ustar
 end
 
+function star_density(state, pstar::Float64, γ::Float64)
+    ρ, u, p = state
 
-function pressure_derivative(p_star, states, γ)
-    ρL, uL, pL, ρR, uR, pR = states
-
-    df(p, ρ, p₀) = p > p₀ ? begin
-            A, B = shock_coefficients(ρ, p₀, γ)
-            (1 - (p - p₀) / (2 * (B + p))) * sqrt(A / (p + B))
-        end :
-        (1 / (ρ * sound_speed(γ, p₀, ρ))) * (p / p₀) ^ (-(γ + 1) / (2 * γ))
-
-    return df(p_star, ρL, pL) + df(p_star, ρR, pR)
+    if pstar > p
+        # Shock
+        num = pstar / p + (γ - 1.0) / (γ + 1.0)
+        den = ( (γ - 1.0) / (γ + 1.0) ) * (pstar / p) + 1.0
+        return ρ * (num / den)
+    else
+        # Rarefaction
+        return ρ * (pstar / p)^(1.0 / γ)
+    end
 end
 
+left_shock_speed(ρL, uL, pL, pstar, γ) = uL - cs(γ, pL, ρL) * sqrt( ( (γ + 1.0) / (2.0 * γ) ) * (pstar / pL) + (γ - 1.0) / (2.0 * γ) )
+right_shock_speed(ρR, uR, pR, pstar, γ) = uR + cs(γ, pR, ρR) * sqrt( ( (γ + 1.0) / (2.0 * γ) ) * (pstar / pR) + (γ - 1.0) / (2.0 * γ) )
 
-# ---------------------------
-# Main Solver
-# ---------------------------
+function sample_exact(xi, ρL, uL, pL, ρR, uR, pR, pstar, ustar, γ)
+    # Precompute star states
+    ρLstar = star_density((ρL, uL, pL), pstar, γ)
+    ρRstar = star_density((ρR, uR, pR), pstar, γ)
+    aLstar = cs(γ, pstar, ρLstar)
+    aRstar = cs(γ, pstar, ρRstar)
 
-function ExactRiemannSolve!(states, γ)
-
-    ρL, uL, pL, ρR, uR, pR = states
-    p_star_guess = 0.5 * (pL + pR)
-
-    p_star = newton_raphson(
-        p -> pressure_function(p, states, γ),
-        p -> pressure_derivative(p, states, γ),
-        p_star_guess
-    )
-
-    # For left side
-    A_L, B_L = shock_coefficients(ρL, pL, γ)
-    fL = p_star > pL ? 
-        (p_star - pL) * sqrt(A_L / (p_star + B_L)) :
-        (2 * sound_speed(γ, pL, ρL) / (γ - 1)) * ((p_star / pL)^((γ - 1) / (2 * γ)) - 1)
-
-    # For right side
-    A_R, B_R = shock_coefficients(ρR, pR, γ)
-    fR = p_star > pR ? 
-        (p_star - pR) * sqrt(A_R / (p_star + B_R)) :
-        (2 * sound_speed(γ, pR, ρR) / (γ - 1)) * ((p_star / pR)^((γ - 1) / (2 * γ)) - 1)
-
-
-    u_star = 0.5 * ((uL + uR) + (fR - fL))
-
-    # Determine sampling region and return fluxes
-    if u_star > 0.0
-        if p_star > pL
-            sL = uL - sound_speed(γ, pL, ρL) * sqrt((γ+1)/(2γ) * (p_star/pL) + (γ-1)/(2γ))
-            if sL > 0
-                ρ, u, p = ρL, uL, pL
+    if xi <= ustar
+        # LEFT side of contact
+        if pstar > pL
+            # Left shock
+            SL = left_shock_speed(ρL, uL, pL, pstar, γ)
+            if xi < SL
+                return (ρL, uL, pL)
             else
-                ρ = ρL * ((p_star/pL + (γ-1)/(γ+1)) / ((γ-1)/(γ+1)*(p_star/pL) + 1))
-                u, p = u_star, p_star
+                return (ρLstar, ustar, pstar)
             end
         else
-            cL = sound_speed(γ, pL, ρL)
-            shL = uL - cL
-            stL = u_star - cL * (p_star/pL)^((γ-1)/(2γ))
-            if shL > 0
-                ρ, u, p = ρL, uL, pL
-            elseif stL < 0
-                ρ = ρL * (p_star/pL)^(1/γ)
-                u, p = u_star, p_star
+            # Left rarefaction
+            SHL = uL - aLstar          # head
+            STL = ustar - aLstar     # tail
+            if xi < SHL
+                return (ρL, uL, pL)
+            elseif xi > STL
+                return (ρLstar, ustar, pstar)
             else
-                ρ = ρL * ((2/(γ+1)) + (γ-1)/((γ+1)*cL) * (uL - u_star))^(2/(γ-1))
-                u = (2/(γ+1)) * (cL + (γ-1)/2 * uL)
-                p = pL * ((2/(γ+1)) + (γ-1)/((γ+1)*cL) * (uL - u_star))^(2γ/(γ-1))
+                # Inside left fan (use Riemann invariants)
+                u = (2.0 / (γ + 1.0)) * (aLstar + 0.5*(γ - 1.0)*uL + xi)
+                a = (2.0 / (γ + 1.0)) * (aLstar + 0.5*(γ - 1.0)*(uL - xi))
+                ρ = ρL * (a / aLstar)^(2.0 / (γ - 1.0))
+                p = γ^-1 * a^2 * ρ
+                return (ρ, u, p)
             end
         end
     else
-        if p_star > pR
-            sR = uR + sound_speed(γ, pR, ρR) * sqrt((γ+1)/(2γ) * (p_star/pR) + (γ-1)/(2γ))
-            if sR < 0
-                ρ, u, p = ρR, uR, pR
+        # RIGHT side of contact
+        if pstar > pR
+            # Right shock
+            SR = right_shock_speed(ρR, uR, pR, pstar, γ)
+            if xi > SR
+                return (ρR, uR, pR)
             else
-                ρ = ρR * ((p_star/pR + (γ-1)/(γ+1)) / ((γ-1)/(γ+1)*(p_star/pR) + 1))
-                u, p = u_star, p_star
+                return (ρRstar, ustar, pstar)
             end
         else
-            cR = sound_speed(γ, pR, ρR)
-            shR = uR + cR
-            stR = u_star + cR * (p_star/pR)^((γ-1)/(2γ))
-            if shR < 0
-                ρ, u, p = ρR, uR, pR
-            elseif stR > 0
-                ρ = ρR * (p_star/pR)^(1/γ)
-                u, p = u_star, p_star
+            # Right rarefaction
+            SHR = uR + aRstar          # head
+            STR = ustar + aRstar     # tail
+            if xi > SHR
+                return (ρR, uR, pR)
+            elseif xi < STR
+                return (ρRstar, ustar, pstar)
             else
-                ρ = ρR * ((2/(γ+1)) - (γ-1)/((γ+1)*cR) * (uR - u_star))^(2/(γ-1))
-                u = (2/(γ+1)) * (-cR + (γ-1)/2 * uR)
-                p = pR * ((2/(γ+1)) - (γ-1)/((γ+1)*cR) * (uR - u_star))^(2γ/(γ-1))
+                # Inside right fan
+                u = (2.0 / (γ + 1.0)) * (-aRstar + 0.5*(γ - 1.0)*uR + xi)
+                a = (2.0 / (γ + 1.0)) * (aRstar - 0.5*(γ - 1.0)*(uR - xi))
+                ρ = ρR * (a / aRstar)^(2.0 / (γ - 1.0))
+                p = γ^-1 * a^2 * ρ
+                return (ρ, u, p)
             end
         end
     end
-
-    # Compute fluxes
-    ρu = ρ * u
-    momentum_flux = ρ * u^2 + p
-    E = p / (γ - 1) + 0.5 * ρ * u^2
-    energy_flux = u * (E + p)
-
-    return ρu, momentum_flux, energy_flux
 end
+
+
+#=
+# ---------- Problem setup ----------
+γ   = 1.4
+xL, xR = -1.0, 1.0
+nx  = 800
+x0  = 0.0                 # initial discontinuity
+x   = range(xL, xR; length=nx)
+
+# Sod ICs
+ρL, uL, pL = 1.0, 0.0, 1.0
+ρR, uR, pR = 0.125, 0.0, 0.1
+
+# Solve Riemann problem once (self-similar)
+pstar, ustar = solve_star_pressure(ρL, uL, pL, ρR, uR, pR, γ)
+ρLstar = star_density((ρL, uL, pL), pstar, γ)
+ρRstar = star_density((ρR, uR, pR), pstar, γ)
+
+println("Exact Riemann Solver:")
+println("  p* = $(pstar)")
+println("  u* = $(ustar)")
+println("  ρ*_L = $(ρLstar)")
+println("  ρ*_R = $(ρRstar)")
+
+# ---------- Animation ----------
+# We'll animate t in [tmin, tmax], sampling ξ = (x - x0)/t
+tmin = 1e-6
+tmax = 1.0
+nframes = 120
+
+
+anim = @animate for k in 0:nframes
+    t = tmin + (tmax - tmin) * (k / nframes)
+    ξ = [(xi - x0)/t for xi in x]
+
+    ρ = similar(ξ)
+    u = similar(ξ)
+    p = similar(ξ)
+
+    @inbounds for i in eachindex(ξ)
+        ρi, ui, _pi = sample_exact(ξ[i], ρL, uL, pL, ρR, uR, pR, pstar, ustar, γ)
+        ρ[i] = ρi
+        u[i] = ui
+        p[i] = _pi
+    end
+    plot(size=(900,900), xlabel="x", legend=false,
+           left_margin=10Plots.mm, bottom_margin=10Plots.mm)
+    plot!(x, ρ, xlabel="x", ylabel="ρ", title="Density ρ (t=$(round(t,digits=4)))")
+    plot!(x, u, xlabel="x", ylabel="u", title="Velocity u")
+    plot!(x, p, xlabel="x", ylabel="p", title="Pressure p")
+    
+end
+
+
+gif(anim, "sod_exact.gif"; fps=30, show_msg=true)
+println("Wrote sod_exact.gif")
+=#

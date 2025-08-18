@@ -75,6 +75,9 @@ include("fluxes/riemann_solvers/ExactRiemannSolver.jl")
 include("fluxes/riemann_solvers/RiemannHLL.jl")
 include("fluxes/riemann_solvers/RiemannHLLC.jl")
 
+include("solvers/Interpolation/lagrangeinterp.jl")
+include("solvers/Iterative/NewtonRaphson.jl")
+
 export run_simulation
 export ConstructUniformAxis
 export Construct1DCartesian
@@ -178,10 +181,10 @@ function run_simulation()
                     xlabel="Position (cm)",
                     ylabel="Density, Velocity, Pressure, Internal Energy",
                     legend=:topright)
-            plot!(_grid.xcoord.all_centers, W.density_centers, label="Density")
-            plot!(_grid.xcoord.all_centers, W.velocity_centers, label="Velocity")
-            plot!(_grid.xcoord.all_centers, W.pressure_centers, label="Pressure")
-            plot!(_grid.xcoord.all_centers, W.internal_energy_centers, label="Internal Energy")
+            plot!(_grid.xcoord.all_centers, W.density_centers/maximum(W.density_centers), label="Density")
+            plot!(_grid.xcoord.all_centers, W.velocity_centers/maximum(abs.(W.velocity_centers)), label="Velocity")
+            plot!(_grid.xcoord.all_centers, W.pressure_centers/maximum(W.pressure_centers), label="Pressure")
+            plot!(_grid.xcoord.all_centers, W.internal_energy_centers/maximum(W.internal_energy_centers), label="Internal Energy")
             frame(anim, p)
             println("Step $counter Time: $t")
         elseif user_input.Primary_Input.mode == :Verbose 
@@ -197,6 +200,8 @@ function run_simulation()
             FTCS_Step!(W, U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
         elseif user_input.Primary_Input.solver == :LaxFriedrichs
             LaxFriedrichs_Step(W, U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
+            #LaxFriedrichs_ViscousStep!(W, U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
+            #LaxFriedrichs_Step_FVS!(W, U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
         elseif user_input.Primary_Input.solver == :Richtmyer
             RichtmyerStep!(W, U, F, _grid, user_input,dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing, user_input.Secondary_Input.γ)
         elseif user_input.Primary_Input.solver == :GodunovScheme
@@ -206,6 +211,12 @@ function run_simulation()
             LaxFriedrichs_Step(W, U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
         end
         solver_step_bench_f = time()
+
+        ############################################################################################
+        #                                                                                          #
+        # This is where I need to add in the source terms for either coordinate systems or physics #
+        #                                                                                          #
+        ############################################################################################
 
         if user_input.Primary_Input.mode == :Benchmark
             println("The time it took to apply the boundary conditions was: $(boundary_condition_bench_f - boundary_condition_bench_i) seconds...")

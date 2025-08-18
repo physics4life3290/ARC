@@ -23,11 +23,11 @@ function GodunovStep!(user_input, _grid, W, U, dt)
             ρL, ρR = parabolic_reconstruct(W.density_centers)
             uL, uR = parabolic_reconstruct(W.velocity_centers)
             pL, pR = parabolic_reconstruct(W.pressure_centers)
-            if user_input.Solver_Input.limiter !== nothing 
-                ρL, ρR = apply_ppm_limiter!(W.density_centers, ρL, ρR, user_input)
-                uL, uR = apply_ppm_limiter!(W.velocity_centers, uL, uR, user_input)
-                pL, pR = apply_ppm_limiter!(W.pressure_centers, pL,pR, user_input)
-            end
+            #if user_input.Solver_Input.limiter !== nothing 
+            #    ρL, ρR = apply_ppm_limiter!(W.density_centers, ρL, ρR, user_input)
+            #    uL, uR = apply_ppm_limiter!(W.velocity_centers, uL, uR, user_input)
+            #    pL, pR = apply_ppm_limiter!(W.pressure_centers, pL,pR, user_input)
+            #end
         end
 
         if user_input.Solver_Input.flattening == true
@@ -65,12 +65,17 @@ function GodunovStep!(user_input, _grid, W, U, dt)
             elseif user_input.Solver_Input.riemanntype == :HLLC
                 f1, f2, f3 = Riemann_HLLC(ρR[i-1], uR[i-1], pR[i-1], ρL[i], uL[i], pL[i], γ)
             elseif user_input.Solver_Input.riemanntype == :Exact
-                f1, f2, f3 = ExactRiemannSolve!((ρR[i-1], uR[i-1], pR[i-1], ρL[i], uL[i], pL[i]),γ)
+                #f1, f2, f3 = ExactRiemannSolve!((ρR[i-1], uR[i-1], pR[i-1], ρL[i], uL[i], pL[i]),γ)
+                pstar, ustar = solve_star_pressure(ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], γ)
+                prims = sample_exact(0.0, ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], pstar, ustar, γ)
+                f1 = prims[1] * prims[2]
+                f2 = prims[1] * prims[2]^2 + prims[3]
+                E = prims[3] / (γ - 1.0) + 0.5 * prims[1] * prims[2]^2
+                f3 = prims[2] * (E + prims[3])
             end
             F1[i] = f1
             F2[i] = f2
             F3[i] = f3
-
         end
     end
 
