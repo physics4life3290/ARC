@@ -4,19 +4,84 @@
 
 
 function LaxFriedrichs_Step(W, U::ConservativeVariables, F::FluxVariables, dt::Float64, ghost_zones::Int, total_zones::Int, spacing::Float64)
+    
     CalculateFlux!(W, U, F)
+    
     Threads.@threads for i in ghost_zones+1:total_zones-ghost_zones
+        
         @inbounds begin
+        
             U.density_centers[i]      = 0.5*(U.density_centers[i+1] + U.density_centers[i-1]) -
                                 (dt/(2*spacing))*(F.density_flux[i+1]   - F.density_flux[i-1])
             U.momentum_centers[i]     = 0.5*(U.momentum_centers[i+1] + U.momentum_centers[i-1]) -
                                 (dt/(2*spacing))*(F.momentum_flux[i+1]   - F.momentum_flux[i-1])
             U.total_energy_centers[i] = 0.5*(U.total_energy_centers[i+1] + U.total_energy_centers[i-1]) -
                                 (dt/(2*spacing))*(F.total_energy_flux[i+1] - F.total_energy_flux[i-1])
+
         end
+
     end
+
 end
 
+function LaxFriedrichs_Step!(W, U::ConservativeVariables, F::FluxVariables, dt::Float64, ghost_zones::Int, total_zones::Int, spacing::Float64; verbose=false)
+    
+    # Store old state for increment norms
+    U_old = deepcopy(U)
+
+    # Calculate fluxes
+    CalculateFlux!(W, U, F)
+    
+    Threads.@threads for i in ghost_zones+1:total_zones-ghost_zones
+        @inbounds begin
+            U.density_centers[i]      = 0.5*(U.density_centers[i+1] + U.density_centers[i-1]) -
+                                        (dt/(2*spacing))*(F.density_flux[i+1]   - F.density_flux[i-1])
+            U.momentum_centers[i]     = 0.5*(U.momentum_centers[i+1] + U.momentum_centers[i-1]) -
+                                        (dt/(2*spacing))*(F.momentum_flux[i+1]   - F.momentum_flux[i-1])
+            U.total_energy_centers[i] = 0.5*(U.total_energy_centers[i+1] + U.total_energy_centers[i-1]) -
+                                        (dt/(2*spacing))*(F.total_energy_flux[i+1] - F.total_energy_flux[i-1])
+        end
+    end
+
+    if verbose
+        # Compute step increments
+        Δρ = U.density_centers .- U_old.density_centers
+        Δm = U.momentum_centers .- U_old.momentum_centers
+        ΔE = U.total_energy_centers .- U_old.total_energy_centers
+
+        # L2 norms
+        L2_ρ = norm(Δρ)
+        L2_m = norm(Δm)
+        L2_E = norm(ΔE)
+
+        # L∞ norms
+        Linf_ρ = maximum(abs.(Δρ))
+        Linf_m = maximum(abs.(Δm))
+        Linf_E = maximum(abs.(ΔE))
+
+        # Total variation
+        TV_ρ = sum(abs.(diff(U.density_centers)))
+        TV_m = sum(abs.(diff(U.momentum_centers)))
+        TV_E = sum(abs.(diff(U.total_energy_centers)))
+
+        # Max/Min overshoot detection
+        max_ρ, min_ρ = maximum(U.density_centers), minimum(U.density_centers)
+        max_m, min_m = maximum(U.momentum_centers), minimum(U.momentum_centers)
+        max_E, min_E = maximum(U.total_energy_centers), minimum(U.total_energy_centers)
+
+        println("=== Lax-Friedrichs Verbose Step ===")
+        println("dt = $dt, dx = $spacing")
+        println("L2 increments: density=$L2_ρ, momentum=$L2_m, energy=$L2_E")
+        println("L∞ increments: density=$Linf_ρ, momentum=$Linf_m, energy=$Linf_E")
+        println("Total Variation: density=$TV_ρ, momentum=$TV_m, energy=$TV_E")
+        println("Max/Min: density=($max_ρ,$min_ρ), momentum=($max_m,$min_m), energy=($max_E,$min_E)")
+        println("==================================")
+    end
+
+end
+
+
+#= From here down is still in testing =#
 
 function LaxFriedrichs_ViscousStep!(W, U::ConservativeVariables, F::FluxVariables,
                                     dt::Float64, ghost_zones::Int, total_zones::Int, spacing::Float64;

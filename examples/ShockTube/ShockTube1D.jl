@@ -3,18 +3,18 @@
 
 
 
-function Construct1DShockTubePrimitives(_grid::CartesianGrid1D, user_input)
+function Construct1DShockTubePrimitives(_grid::Union{CartesianGrid1D, SphericalGrid1D}, user_input)
 
     wall_positions = sort(user_input.Secondary_Input.wall_positions)
     wall_iters = length(wall_positions)
-    iters = _grid.xcoord.total_zones
+    iters = _grid.coord1.total_zones
     if user_input.Primary_Input.solver == :FTCS || user_input.Primary_Input.solver == :LaxFriedrichs || user_input.Primary_Input.solver == :Richtmyer
         W = PrimitiveVariables(zeros(iters), zeros(iters), zeros(iters), zeros(iters), nothing, nothing, nothing, nothing)   
     elseif user_input.Primary_Input.solver == :GodunovScheme 
         W = PrimitiveVariables(zeros(iters), zeros(iters), zeros(iters), zeros(iters), zeros(iters), zeros(iters), zeros(iters), zeros(iters)) 
     end
         @inbounds for i in 1:iters
-        x = _grid.xcoord.all_centers[i]
+        x = _grid.coord1.all_centers[i]
 
         region_idx = 0
 

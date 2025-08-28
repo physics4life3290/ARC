@@ -32,15 +32,12 @@ end
 
 function _1DBlastWaveUserInput(grid_input)
 
-    println("Please input how many states are in the box...")
-    num_of_states = parse(Int, readline())
-
+    num_of_states = prompt_num_states()
     wall_positions = get_wall_positions(num_of_states, grid_input.coord_min, grid_input.coord_max)
     
     states = get_BlastWave_states_structured(num_of_states)
 
-    println("How many blast regions do you want?")
-    num_blasts = parse(Int, readline())
+    num_blasts = prompt_num_blasts()
 
     blasts = BlastRegion[]
     for i in 1:num_blasts
@@ -62,7 +59,7 @@ function _1DBlastWaveUserInput(grid_input)
     end
     
     println("Please input an Adiabatic Constant (γ)...")
-    γ = parse(Float64, readline())
+    γ = prompt_adiabatic_constant()
 
     blast_params = BlastParameters(states, blasts)
     

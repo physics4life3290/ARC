@@ -3,11 +3,11 @@
 
 
 
-function GodunovStep!(user_input, _grid, W, U, dt)
+function GodunovStep!(user_input, _grid, W, U, F, dt)
     
-    nx = _grid.xcoord.total_zones
+    nx = _grid.coord1.total_zones
     γ = user_input.Secondary_Input.gamma
-    dx = _grid.xcoord.spacing
+    dx = _grid.coord1.spacing
 
     if user_input.Solver_Input.reconstruction != :Constant
 
@@ -73,18 +73,18 @@ function GodunovStep!(user_input, _grid, W, U, dt)
                 E = prims[3] / (γ - 1.0) + 0.5 * prims[1] * prims[2]^2
                 f3 = prims[2] * (E + prims[3])
             end
-            F1[i] = f1
-            F2[i] = f2
-            F3[i] = f3
+            F.density_flux[i] = f1
+            F.momentum_flux[i] = f2
+            F.total_energy_flux[i] = f3
         end
     end
 
     # Update conserved variables (interior cells)
     Threads.@threads for i in 2:nx-1
         @inbounds begin
-            U.density_centers[i] -= dt/dx * (F1[i+1] - F1[i])
-            U.momentum_centers[i] -= dt/dx * (F2[i+1] - F2[i])
-            U.total_energy_centers[i] -= dt/dx * (F3[i+1] - F3[i])
+            U.density_centers[i] -= dt/dx * (F.density_flux[i+1] - F.density_flux[i])
+            U.momentum_centers[i] -= dt/dx * (F.momentum_flux[i+1] - F.momentum_flux[i])
+            U.total_energy_centers[i] -= dt/dx * (F.total_energy_flux[i+1] - F.total_energy_flux[i])
 
         end
     end

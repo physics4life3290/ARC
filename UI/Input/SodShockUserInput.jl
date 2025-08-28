@@ -60,14 +60,13 @@ end
 function _1DShockTubeUserInput(grid_input)
 
     println("Please input how many states are in the box...")
-    num_of_states = parse(Int, readline())
-
+    num_of_states = prompt_num_states()
+    
     wall_positions = get_wall_positions(num_of_states, grid_input.coord_min, grid_input.coord_max)
 
     states = get_ShockTube_states_structured(num_of_states)
 
-    println("Please input an Adiabatic Constant...")
-    adiabat_const = parse(Float64, readline())
+    adiabat_const = prompt_adiabatic_constant()
 
     return ShockTubeInput(wall_positions, states, adiabat_const)
 

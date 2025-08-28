@@ -2,75 +2,9 @@
 
 
 
-#=
-function parabolic_reconstruct(var::AbstractVector; periodic::Bool=false)
+
+function parabolic_reconstruct(var::AbstractArray)
     n = length(var)
-    promT = promote_type(eltype(var), Float64)
-    c1 = convert(promT, 7.0/12.0)
-    c2 = convert(promT, -1.0/12.0)
-
-    var_L = zeros(promT, n)  # faces from 1 to n+1
-    var_R = zeros(promT, n)
-
-    if periodic
-        # For periodic: use modulo indexing and apply stencil for all faces
-        for f in 1:n+1
-            # face between cells a = (f-1) mod n and b = f mod n (1-based)
-            a = (f - 1) % n + 1
-            b = (f) % n + 1
-            a_im2 = (a - 2) % n + 1  # a-2 mod n
-            b_ip1 = (b) % n + 1     # b+1 mod n
-
-            # Left state from cell a side
-            var_L[f] = c1*var[a] + c2*(var[a_im2] + var[b])
-
-            # Right state from cell b side
-            var_R[f] = c1*var[b] + c2*(var[a] + var[b_ip1])
-        end
-
-    else
-        # Non-periodic: handle boundaries with lower-order stencils
-
-        # Interior faces: from 2 to n (interfaces between cells f-1 and f)
-        for f in 2:n
-            a = f - 1  # left cell
-            b = f      # right cell
-            
-            # Check indices for stencil:
-            # For var_L[f], need var[a], var[a-2], var[b]
-            # For var_R[f], need var[b], var[a], var[b+1]
-
-            # safe stencil condition:
-            cond_var_L = (a - 2) >= 1 && b <= n
-            cond_var_R = (b + 1) <= n
-
-            if cond_var_L && cond_var_R
-                var_L[f] = c1*promT(var[a]) + c2*(promT(var[a-2]) + promT(var[b]))
-                var_R[f] = c1*promT(var[b]) + c2*(promT(var[a]) + promT(var[b+1]))
-            else
-                # fallback: simple average
-                var_L[f] = (promT(var[a]) + promT(var[b])) / 2
-                var_R[f] = var_L[f]
-            end
-        end
-
-        # Left boundary face (face 1, between cells 0 and 1 — outside domain)
-        # No cell 0, so var_L[1] = var[1], var_R[1] = var[1] (no extrapolation)
-        var_L[1] = promT(var[1])
-        var_R[1] = promT(var[1])
-
-        # Right boundary face (face n+1, between cells n and n+1 — outside domain)
-        var_L[n] = promT(var[n])
-        var_R[n] = promT(var[n])
-    end
-
-    return var_L, var_R
-end
-=#
-
-function parabolic_reconstruct(var)
-    n = length(var)
-
     # Allocate left/right interface arrays
     var_L = zeros(n)
     var_R = zeros(n)
@@ -79,23 +13,26 @@ function parabolic_reconstruct(var)
     # c0 = cell average (var[i])
     # c1 = slope term
     # c2 = curvature term
-    for i in 2:n-1
-        # Compute first differences
-        d_im1 = var[i] - var[i-1]
-        d_ip1 = var[i+1] - var[i]
 
-        # Centered slope (first derivative)
-        slope = 0.5 * (d_im1 + d_ip1)
+    Threads.@threads for i in 2:(n-1)
+        @inbounds begin
+            # Compute first differences
+            d_im1 = var[i] - var[i-1]
+            d_ip1 = var[i+1] - var[i]
 
-        # Quadratic curvature (second derivative)
-        curvature = 0.5 * (d_ip1 - d_im1)
+            # Centered slope (first derivative)
+            slope = 0.5 * (d_im1 + d_ip1)
 
-        # Reconstruct left and right interface states
-        # L state at i+1/2 comes from cell i
-        var_R[i] = var[i] + 0.5 * slope + (1/6) * curvature
+            # Quadratic curvature (second derivative)
+            curvature = 0.5 * (d_ip1 - d_im1)
 
-        # R state at i-1/2 comes from cell i
-        var_L[i] = var[i] - 0.5 * slope + (1/6) * curvature
+            # Reconstruct left and right interface states
+            # L state at i+1/2 comes from cell i
+            var_R[i] = var[i] + 0.5 * slope + (1/6) * curvature
+
+            # R state at i-1/2 comes from cell i
+            var_L[i] = var[i] - 0.5 * slope + (1/6) * curvature
+        end
     end
 
     # Boundaries: copy cell values
@@ -109,8 +46,8 @@ end
 
 
 
-function apply_ppm_limiter!(var::AbstractVector, var_L::AbstractVector, var_R::AbstractVector, user_input; periodic::Bool=false)
-    n = length(var)
+function apply_ppm_limiter!(var::AbstractVector, var_L::AbstractVector, var_R::AbstractVector, n::Int; user_input=nothing, periodic::Bool=false)
+
     @assert length(var_L) == n && length(var_R) == n "var_L/var_R must have length n (faces indexed 1..n)"
     @assert n >= 2 "PPM/MUSCL limiter needs at least 2 cells"
 
@@ -131,23 +68,27 @@ function apply_ppm_limiter!(var::AbstractVector, var_L::AbstractVector, var_R::A
     # -----------------------------
     if periodic
         # All faces are true interfaces
-        for f in 1:n
-            a = f
-            b = ip1(f)
-            lo = min(T(var[a]), T(var[b]))
-            hi = max(T(var[a]), T(var[b]))
-            var_L[f] = clamp(T(var_L[f]), lo, hi)
-            var_R[f] = clamp(T(var_R[f]), lo, hi)
+        Threads.@threads for f in 1:n
+            @inbounds begin
+                a = f
+                b = ip1(f)
+                lo = min(T(var[a]), T(var[b]))
+                hi = max(T(var[a]), T(var[b]))
+                var_L[f] = clamp(T(var_L[f]), lo, hi)
+                var_R[f] = clamp(T(var_R[f]), lo, hi)
+            end
         end
     else
         # Interior faces: 2..n-1 correspond to interfaces (i-1, i)
-        for f in 2:n-1
-            a = f - 1
-            b = f
-            lo = min(T(var[a]), T(var[b]))
-            hi = max(T(var[a]), T(var[b]))
-            var_L[f] = clamp(T(var_L[f]), lo, hi)
-            var_R[f] = clamp(T(var_R[f]), lo, hi)
+        Threads.@threads for f in 2:(n-1)
+            @inbounds begin
+                a = f - 1
+                b = f
+                lo = min(T(var[a]), T(var[b]))
+                hi = max(T(var[a]), T(var[b]))
+                var_L[f] = clamp(T(var_L[f]), lo, hi)
+                var_R[f] = clamp(T(var_R[f]), lo, hi)
+            end
         end
         # Physical boundaries: set to cell values (no extrapolation)
         var_L[1] = T(var[1]);   var_R[1] = T(var[1])   # left boundary
@@ -158,7 +99,12 @@ function apply_ppm_limiter!(var::AbstractVector, var_L::AbstractVector, var_R::A
     # 2) Per-cell monotonicity check and slope-limited fallback (MUSCL)
     #    If either edge from cell i violates envelope, rebuild both edges from i.
     # -----------------------------
-    limiter = user_input.Solver_Input.limiter
+
+    if user_input !== nothing
+        limiter = user_input.Solver_Input.limiter
+    else
+        limiter = lim 
+    end
 
     # Helpers to safely fetch neighbor values in non-periodic case
     get_im1 = i -> periodic ? T(var[im1(i)]) : T(var[i == 1 ? 1 : i-1])
@@ -166,71 +112,73 @@ function apply_ppm_limiter!(var::AbstractVector, var_L::AbstractVector, var_R::A
 
     # Loop over cells; in non-periodic case we’ll avoid writing a non-existent right face
     istop = periodic ? n : n  # we still process i=n to possibly fix the left face
-    for i in 1:istop
-        v_i   = T(var[i])
-        v_im1 = get_im1(i)
-        v_ip1 = get_ip1(i)
+    Threads.@threads for i in 1:istop
+        @inbounds begin
+            v_i   = T(var[i])
+            v_im1 = get_im1(i)
+            v_ip1 = get_ip1(i)
 
-        # Envelope across neighbors
-        qmin = min(v_im1, min(v_i, v_ip1))
-        qmax = max(v_im1, max(v_i, v_ip1))
+            # Envelope across neighbors
+            qmin = min(v_im1, min(v_i, v_ip1))
+            qmax = max(v_im1, max(v_i, v_ip1))
 
-        # Faces "owned" by cell i
-        fL = i                                  # left face index
-        fR = periodic ? ip1(i) : (i < n ? i+1 : n)  # right face index
+            # Faces "owned" by cell i
+            fL = i                                  # left face index
+            fR = periodic ? ip1(i) : (i < n ? i+1 : n)  # right face index
 
-        # Edge values coming from cell i
-        q_left_from_i  = T(var_R[fL])     # left edge of cell i
-        q_right_from_i = T(var_L[fR])     # right edge of cell i
+            # Edge values coming from cell i
+            q_left_from_i  = T(var_R[fL])     # left edge of cell i
+            q_right_from_i = T(var_L[fR])     # right edge of cell i
 
-        # If either edge lies outside the local envelope, rebuild using a slope-limited linear profile
-        if (q_left_from_i < qmin || q_left_from_i > qmax ||
-            q_right_from_i < qmin || q_right_from_i > qmax)
+            # If either edge lies outside the local envelope, rebuild using a slope-limited linear profile
+            if (q_left_from_i < qmin || q_left_from_i > qmax ||
+                q_right_from_i < qmin || q_right_from_i > qmax)
 
-            # One-sided differences and centered difference
-            if periodic
-                Δplus    = T(var[ip1(i)]) - v_i
-                Δminus   = v_i - T(var[im1(i)])
-                centered = (T(var[ip1(i)]) - T(var[im1(i)])) / 2
-            else
-                if i == 1
-                    Δplus    = T(var[i+1]) - v_i
-                    Δminus   = zero(T)
-                    centered = zero(T)
-                elseif i == n
-                    Δplus    = zero(T)
-                    Δminus   = v_i - T(var[i-1])
-                    centered = zero(T)
+                # One-sided differences and centered difference
+                if periodic
+                    Δplus    = T(var[ip1(i)]) - v_i
+                    Δminus   = v_i - T(var[im1(i)])
+                    centered = (T(var[ip1(i)]) - T(var[im1(i)])) / 2
                 else
-                    Δplus    = T(var[i+1]) - v_i
-                    Δminus   = v_i - T(var[i-1])
-                    centered = (T(var[i+1]) - T(var[i-1])) / 2
+                    if i == 1
+                        Δplus    = T(var[i+1]) - v_i
+                        Δminus   = zero(T)
+                        centered = zero(T)
+                    elseif i == n
+                        Δplus    = zero(T)
+                        Δminus   = v_i - T(var[i-1])
+                        centered = zero(T)
+                    else
+                        Δplus    = T(var[i+1]) - v_i
+                        Δminus   = v_i - T(var[i-1])
+                        centered = (T(var[i+1]) - T(var[i-1])) / 2
+                    end
                 end
-            end
 
-            # Choose limiter
-            s::T = zero(T)
-            if limiter == :minmod
-                s = minmod3(centered, 2*Δplus, 2*Δminus)
-            elseif limiter == :superbee
-                s = superbee(Δminus, Δplus)
-            elseif limiter == :vanleer
-                s = vanleer(Δminus, Δplus)
-            else
-                error("Unknown limiter: $limiter")
-            end
+                # Choose limiter
+                s::T = zero(T)
+                if limiter == :minmod
+                    s = minmod3(centered, 2*Δplus, 2*Δminus)
+                elseif limiter == :superbee
+                    s = superbee(Δminus, Δplus)
+                elseif limiter == :vanleer
+                    s = vanleer(Δminus, Δplus)
+                else
+                    error("Unknown limiter: $limiter")
+                end
 
-            # Rebuild edges for cell i (MUSCL fallback)
-            # These are cell-i contributions to left and right faces
-            var_R[fL] = v_i - 0.5*s
-            if periodic || i < n
-                var_L[fR] = v_i + 0.5*s
-            end
+                # Rebuild edges for cell i (MUSCL fallback)
+                # These are cell-i contributions to left and right faces
+                var_R[fL] = v_i - 0.5*s
+                if periodic || i < n
+                    var_L[fR] = v_i + 0.5*s
+                end
 
-            # After rebuilding, clamp again to envelope to be safe
-            var_R[fL] = clamp(var_R[fL], qmin, qmax)
-            if periodic || i < n
-                var_L[fR] = clamp(var_L[fR], qmin, qmax)
+                # After rebuilding, clamp again to envelope to be safe
+                var_R[fL] = clamp(var_R[fL], qmin, qmax)
+                if periodic || i < n
+                    var_L[fR] = clamp(var_L[fR], qmin, qmax)
+                end
             end
         end
     end

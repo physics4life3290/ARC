@@ -6,6 +6,7 @@
 struct PrimaryInput
     problem::Symbol
     mode::Symbol
+    features::Vector{Symbol}
     dimension::Int
     coordinate_system::Symbol
     solver::Symbol
@@ -60,8 +61,6 @@ struct BlastWaveInput
     ambient_states::Vector{PrimitiveVariables}
     gamma::Float64
 end
-
-
 
 struct UserInput
     Primary_Input::PrimaryInput

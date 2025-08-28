@@ -3,11 +3,15 @@
 
 
 
-function Riemann_HLLC(ρL, uL, pL, ρR, uR, pR, γ)
+function Riemann_HLLC(ρL::Float64, uL::Float64, pL::Float64, ρR::Float64, uR::Float64, pR::Float64, γ::Float64)
     # Compute sound speeds
     cL = sqrt(γ * pL / ρL)
     cR = sqrt(γ * pR / ρR)
 
+    #=================================================================#
+    # I need to consolidate these types of functions to a main source #
+    #=================================================================#
+    
     # Conservative variables (ρ, ρu, E)
     function conserved(ρ, u, p)
         E = p/(γ-1) + 0.5 * ρ * u^2

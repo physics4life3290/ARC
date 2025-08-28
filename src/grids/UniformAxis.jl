@@ -31,23 +31,21 @@ function ConstructUniformAxis(domain_length::Float64, zones::Int, ghost_zones::I
                                   domain_length/2 + grid_center + (ghost_zones + 0.5) * spacing,
                                   total_zones + 1)
 
-    elseif coord_system == :spherical
+    elseif coord_system == :spherical || coord_system == :cylindrical
 
-        r_min = 0.0
+        r_min = 1E-12
         r_max = domain_length
 
-        centers = LinRange(r_min + spacing/2, r_max - spacing/2, zones)
-        interfaces = LinRange(r_min, r_max, zones + 1)
+        centers = LinRange(r_min + grid_center, r_max + grid_center, zones)
+        interfaces = LinRange(r_min + grid_center - spacing/2, r_max + grid_center + spacing/2, zones + 1)
 
-        # Ghost zones: only on the *outer* side in spherical (r < 0 is non-physical)
-        all_centers = LinRange(r_min + spacing/2 - ghost_zones * spacing,
-                            r_max - spacing/2 + ghost_zones * spacing,
-                            total_zones)
+        all_centers = LinRange(r_min + grid_center - ghost_zones * spacing,
+                               r_max + grid_center + ghost_zones * spacing,
+                               total_zones)
 
-        all_interfaces = LinRange(r_min - ghost_zones * spacing,
-                                   r_max + ghost_zones * spacing,
-                                   total_zones + 1)
-
+        all_interfaces = LinRange(r_min + grid_center - (ghost_zones + 0.5) * spacing,
+                                  r_max + grid_center + (ghost_zones + 0.5) * spacing,
+                                  total_zones + 1)
     else
         error("Unsupported coordinate system: $coord_system")
     end

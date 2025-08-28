@@ -1,13 +1,12 @@
 
 
-
-include("../../solvers/Iterative/NewtonRaphson.jl")
 #using Plots
-
+include("../../solvers/Iterative/NewtonRaphson.jl")
 
 cs(γ, p, ρ) = sqrt(γ * p / ρ)
 
-function wave_function(p, state, γ)
+function wave_function(p::Float64, state::Tuple{Float64, Float64, Float64}, γ::Float64)
+
     ρ, u, p_i = state
     a = cs(γ, p_i, ρ)
      
@@ -27,6 +26,7 @@ function wave_function(p, state, γ)
         df = (1.0 / (ρ * a)) * pr^(-(γ + 1.0) / (2.0 * γ))
         return f, df
     end
+
 end
 
 # ---------------------------------------
@@ -34,15 +34,19 @@ end
 # ---------------------------------------
 
 # Initial guess (PVRS)
-function PVRS_guess(ρL, uL, pL, ρR, uR, pR, γ)
+function PVRS_guess(ρL::Float64, uL::Float64, pL::Float64, ρR::Float64, uR::Float64, pR::Float64, γ::Float64)
+
     aL, aR = cs(γ, pL, ρL), cs(γ, pR, ρR)
     p̃ = 0.5 * (pL + pR) - 0.125 * (uR - uL) * (ρL + ρR) * (aL + aR)
     p0 = max(1e-8, p̃)
+
     return p0
+
 end
 
 # Two-Rarefaction Approximate Pressure (Toro Eq. 4.44)
-function two_rarefaction_pressure(ρL, uL, pL, ρR, uR, pR, γ)
+function two_rarefaction_pressure(ρL::Float64, uL::Float64, pL::Float64, ρR::Float64, uR::Float64, pR::Float64, γ::Float64)
+
     cL = sqrt(γ * pL / ρL)
     cR = sqrt(γ * pR / ρR)
 
@@ -50,11 +54,14 @@ function two_rarefaction_pressure(ρL, uL, pL, ρR, uR, pR, γ)
     denominator = cL / pL^((γ - 1) / (2γ)) + cR / pR^((γ - 1) / (2γ))
 
     p_pv = (numerator / denominator)^(2γ / (γ - 1))
+
     return max(1e-8, p_pv) # positivity safeguard
+
 end
 
 # Two-Shock Approximate Pressure (Toro Eq. 4.47)
-function two_shock_pressure(ρL, uL, pL, ρR, uR, pR, γ)
+function two_shock_pressure(ρL::Float64, uL::Float64, pL::Float64, ρR::Float64, uR::Float64, pR::Float64, γ::Float64)
+
     cL = sqrt(γ * pL / ρL)
     cR = sqrt(γ * pR / ρR)
 
@@ -66,10 +73,12 @@ function two_shock_pressure(ρL, uL, pL, ρR, uR, pR, γ)
     denominator = gL + gR
 
     p_ts = numerator / denominator
+
     return max(1e-8, p_ts) # positivity safeguard
+    
 end
 
-function solve_star_pressure(ρL, uL, pL, ρR, uR, pR, γ; tol=1e-12, maxiter=10000)
+function solve_star_pressure(ρL::Float64, uL::Float64, pL::Float64, ρR::Float64, uR::Float64, pR::Float64, γ::Float64; tol=1e-12, maxiter=10000)
 
     p0 = PVRS_guess(ρL, uL, pL, ρR, uR, pR, γ)
 
@@ -101,9 +110,10 @@ function solve_star_pressure(ρL, uL, pL, ρR, uR, pR, γ; tol=1e-12, maxiter=10
     ustar = 0.5 * (uL + uR) + 0.5 * (fR - fL)
 
     return pstar, ustar
+
 end
 
-function star_density(state, pstar::Float64, γ::Float64)
+function star_density(state::Tuple{Float64, Float64, Float64}, pstar::Float64, γ::Float64)
     ρ, u, p = state
 
     if pstar > p
@@ -115,12 +125,13 @@ function star_density(state, pstar::Float64, γ::Float64)
         # Rarefaction
         return ρ * (pstar / p)^(1.0 / γ)
     end
+
 end
 
 left_shock_speed(ρL, uL, pL, pstar, γ) = uL - cs(γ, pL, ρL) * sqrt( ( (γ + 1.0) / (2.0 * γ) ) * (pstar / pL) + (γ - 1.0) / (2.0 * γ) )
 right_shock_speed(ρR, uR, pR, pstar, γ) = uR + cs(γ, pR, ρR) * sqrt( ( (γ + 1.0) / (2.0 * γ) ) * (pstar / pR) + (γ - 1.0) / (2.0 * γ) )
 
-function sample_exact(xi, ρL, uL, pL, ρR, uR, pR, pstar, ustar, γ)
+function sample_exact(xi::Float64, ρL::Float64, uL::Float64, pL::Float64, ρR::Float64, uR::Float64, pR::Float64, pstar::Float64, ustar::Float64, γ::Float64)
     # Precompute star states
     ρLstar = star_density((ρL, uL, pL), pstar, γ)
     ρRstar = star_density((ρR, uR, pR), pstar, γ)
@@ -240,4 +251,74 @@ end
 
 gif(anim, "sod_exact.gif"; fps=30, show_msg=true)
 println("Wrote sod_exact.gif")
+using Printf, Plots
+
+# ---------- Sedov blast (spherical) ----------
+γ   = 1.4
+xL, xR = -1.0, 1.0
+nx  = 800
+x0  = 0.0
+x   = range(xL, xR; length=nx)
+
+# Ambient (pre-shock) state
+ρ0, u0, p0 = 1.0, 0.0, 0.0          # cold medium
+
+# Choose a target shock radius at t = tmax to fit in box
+tmin = 1e-5
+tmax = 1.0
+Rtarget = 0.9 * (xR - xL)/2         # ~90% to boundary at tmax
+
+# Sedov scaling (spherical): Rs(t) = C * t^(2/5)
+# We don't actually need E or the exact similarity constant; we set C so Rs(tmax)=Rtarget
+Csedov = Rtarget / (tmax^(2/5))
+
+# Helper: shock radius and speed
+Rs(t) = Csedov * t^(2/5)
+Ss(t) = (2/5) * Csedov * t^(-3/5)   # d(Rs)/dt
+
+# Strong-shock (Rankine–Hugoniot) jumps for γ-gas, upstream (ρ0,u0,p0) and shock speed S
+# Immediate post-shock state (self-similar interior is more complex; we use front values here)
+ρ2_of(S) = ((γ+1)/(γ-1)) * ρ0
+p2_of(S) = 2ρ0 * S^2 / (γ+1)
+u2_of(S) = 2S / (γ+1)               # gas velocity just behind the front, lab frame
+
+# ---------- Animation ----------
+nframes = 120
+anim = @animate for k in 0:nframes
+    t = tmin + (tmax - tmin) * (k / nframes)
+    R = Rs(t)
+    S = Ss(t)
+
+    ρ = fill(ρ0, nx)
+    u = fill(u0, nx)
+    p = fill(p0, nx)
+
+    # simple radial 1-D slice through a spherical blast, r = |x - x0|
+    @inbounds for i in eachindex(x)
+        r = abs(x[i] - x0)
+        if r ≤ R
+            # fill shocked region with immediate post-shock state
+            ρ[i] = ρ2_of(S)
+            u[i] = sign(x[i]-x0) * u2_of(S)  # outward on both sides along the line
+            p[i] = p2_of(S)
+        end
+    end
+
+    # plot three panels stacked (ρ, u, p)
+    plot(size=(900,900), legend=false,
+         left_margin=10Plots.mm, bottom_margin=10Plots.mm)
+
+    plot!(x, ρ, xlabel="x", ylabel="ρ",
+          title=@sprintf("Sedov blast (γ=%.1f), t=%.4f, R_s=%.3f", γ, t, R))
+    vline!([-R + x0, R + x0], linestyle=:dash, alpha=0.6)
+
+    plot!(x, u, xlabel="x", ylabel="u")
+    vline!([-R + x0, R + x0], linestyle=:dash, alpha=0.6)
+
+    plot!(x, p, xlabel="x", ylabel="p")
+    vline!([-R + x0, R + x0], linestyle=:dash, alpha=0.6)
+end
+
+gif(anim, "sedov_strongshock.gif"; fps=30, show_msg=true)
+println("Wrote sedov_strongshock.gif")
 =#

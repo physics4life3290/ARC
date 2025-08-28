@@ -5,7 +5,7 @@ function Construct1DBlastWavePrimitives(_grid::CartesianGrid1D, user_input::User
     
     wall_positions = sort(blast_input.wall_positions)
     wall_iters = length(wall_positions)
-    iters = _grid.xcoord.total_zones
+    iters = _grid.coord1.total_zones
 
     # Use the states from parameters.states, which define ambient states
     states = blast_input.parameters.states
@@ -19,7 +19,7 @@ function Construct1DBlastWavePrimitives(_grid::CartesianGrid1D, user_input::User
     end
 
     @inbounds for i in 1:iters
-        x = _grid.xcoord.all_centers[i]
+        x = _grid.coord1.all_centers[i]
 
         # Determine region index according to walls
         region_idx = 0

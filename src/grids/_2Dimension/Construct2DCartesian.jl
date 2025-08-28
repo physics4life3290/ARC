@@ -39,6 +39,6 @@ function Construct2DCartesian(
     yghost_bounds = (-ydomain_length/2 + grid_center - ghost_zones * ycoord.spacing, 
                      ydomain_length/2 + grid_center + ghost_zones * ycoord.spacing)
 
-    return CartesianGrid2D(xcoord, ycoord, xbounds, ybounds, xghost_bounds, yghost_bounds, grid_center, cell_areas, units) 
+    return CartesianGrid2D(xcoord, ycoord, xbounds, ybounds, xghost_bounds, yghost_bounds, grid_center, cell_areas, units)
 end
 

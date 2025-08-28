@@ -3,7 +3,8 @@
 
 
 
-function Riemann_HLL(ρL, uL, pL, ρR, uR, pR, γ)
+function Riemann_HLL(ρL::Float64, uL::Float64, pL::Float64, ρR::Float64, uR::Float64, pR::Float64, γ::Float64)
+
     # Toro's method - simplified pressure estimate
     p_star = max(1e-6, 0.5 * (pL + pR) - 0.125 * (uR - uL) * (ρL + ρR))
     u_star = 0.5 * (uL + uR) + 0.5 * (pL - pR) / (ρL + ρR)
@@ -30,4 +31,5 @@ function Riemann_HLL(ρL, uL, pL, ρR, uR, pR, γ)
         F3 = (SR * FL[3] - SL * FR[3] + SL * SR * (UR[3] - UL[3])) / (SR - SL)
         return F1, F2, F3
     end
+    
 end

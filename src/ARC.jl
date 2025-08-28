@@ -4,6 +4,8 @@ using CUDA
 using HDF5
 using Plots
 using ArgParse # For command line argument parsing access
+using Dates
+using Printf
 
 const MaybeVector{T} = Union{Nothing, Vector{T}}
 
@@ -56,6 +58,9 @@ include("../examples/ShockTube/ShockTube1D.jl")
 include("../examples/BlastWave1D.jl")
 
 include("../logs/run_log.jl")
+include("features/verbose/write_solver_input.jl")
+include("features/verbose/write_solver_errors.jl")
+include("features/verbose/write_solver_output.jl")
 
 include("limiters/minmod.jl")
 include("limiters/vanleer.jl")
@@ -64,7 +69,7 @@ include("limiters/superbee.jl")
 include("fluxes/reconstructions/linear_reconstruction.jl")
 include("fluxes/reconstructions/parabolic_reconstruction.jl")
 include("fluxes/reconstructions/steepening.jl")
-include("fluxes/reconstructions/flattening.jl")
+include("fluxes/reconstructions/flattening/flattening.jl")
 
 include("solvers/HYDRO/FDM/FTCS.jl")
 include("solvers/HYDRO/FDM/LaxFriedrichs.jl")
@@ -102,6 +107,8 @@ function CalculateFlux!(W, U, F)
     F.total_energy_flux .= W.velocity_centers .* (U.total_energy_centers .+ W.pressure_centers)
 end
 
+# This is where I need to begin and rehash the new modes, and their features.
+
 function run_simulation()
 
     #   initiate_UI()
@@ -119,8 +126,14 @@ function run_simulation()
     t_final = user_input.Solver_Input.t_final
     t = 0.0
     counter = 0
-
-    _grid = Construct1DCartesian(user_input.Grid_Input.domain, user_input.Grid_Input.zones, user_input.Grid_Input.ghost_zones, user_input.Grid_Input.grid_center, "cm")
+    _grid = nothing
+    if user_input.Primary_Input.dimension == 1
+        if user_input.Primary_Input.coordinate_system == :Cartesian
+            _grid = Construct1DCartesian(user_input.Grid_Input.domain, user_input.Grid_Input.zones, user_input.Grid_Input.ghost_zones, user_input.Grid_Input.grid_center, "cm")
+        elseif user_input.Primary_Input.coordinate_system == :Spherical || user_input.Primary_Input.coordinate_system == :Cylindrical
+            _grid = Construct1DSpherical(user_input.Grid_Input.domain, user_input.Grid_Input.zones, user_input.Grid_Input.ghost_zones, user_input.Grid_Input.grid_center, "cm")
+        end
+    end
     println("The grid has been successfully created!")
     prim_var_construct_i = time()
     if user_input.Primary_Input.problem == :ShockTube
@@ -131,7 +144,7 @@ function run_simulation()
             densities = [state.density_centers for state in user_input.Secondary_Input.states]
 
             c = sqrt(user_input.Secondary_Input.gamma * maximum(pressures) / maximum(densities))
-            dt = user_input.Solver_Input.cfl * _grid.xcoord.spacing / c
+            dt = user_input.Solver_Input.cfl * _grid.coord1.spacing / c
 
             W = Construct1DShockTubePrimitives(_grid, user_input)
 
@@ -144,7 +157,7 @@ function run_simulation()
             densities = [state.density_centers for state in user_input.Secondary_Input.ambient_states]
 
             c = sqrt(user_input.Secondary_Input.gamma * maximum(pressures) / maximum(densities))
-            dt = user_input.Solver_Input.cfl * _grid.xcoord.spacing / c
+            dt = user_input.Solver_Input.cfl * _grid.coord1.spacing / c
 
             W = Construct1DBlastWavePrimitives(_grid, user_input)
         end
@@ -181,10 +194,10 @@ function run_simulation()
                     xlabel="Position (cm)",
                     ylabel="Density, Velocity, Pressure, Internal Energy",
                     legend=:topright)
-            plot!(_grid.xcoord.all_centers, W.density_centers/maximum(W.density_centers), label="Density")
-            plot!(_grid.xcoord.all_centers, W.velocity_centers/maximum(abs.(W.velocity_centers)), label="Velocity")
-            plot!(_grid.xcoord.all_centers, W.pressure_centers/maximum(W.pressure_centers), label="Pressure")
-            plot!(_grid.xcoord.all_centers, W.internal_energy_centers/maximum(W.internal_energy_centers), label="Internal Energy")
+            plot!(_grid.coord1.all_centers, W.density_centers/maximum(W.density_centers), label="Density")
+            plot!(_grid.coord1.all_centers, W.velocity_centers/maximum(abs.(W.velocity_centers)), label="Velocity")
+            plot!(_grid.coord1.all_centers, W.pressure_centers/maximum(W.pressure_centers), label="Pressure")
+            plot!(_grid.coord1.all_centers, W.internal_energy_centers/maximum(W.internal_energy_centers), label="Internal Energy")
             frame(anim, p)
             println("Step $counter Time: $t")
         elseif user_input.Primary_Input.mode == :Verbose 
@@ -197,18 +210,16 @@ function run_simulation()
 
         solver_step_bench_i = time()
         if user_input.Primary_Input.solver == :FTCS
-            FTCS_Step!(W, U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
+            FTCS_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
         elseif user_input.Primary_Input.solver == :LaxFriedrichs
-            LaxFriedrichs_Step(W, U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
-            #LaxFriedrichs_ViscousStep!(W, U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
-            #LaxFriedrichs_Step_FVS!(W, U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
+            LaxFriedrichs_Step(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing)
         elseif user_input.Primary_Input.solver == :Richtmyer
-            RichtmyerStep!(W, U, F, _grid, user_input,dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing, user_input.Secondary_Input.γ)
+            RichtmyerStep!(W, U, F, _grid, user_input,dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Secondary_Input.gamma)
         elseif user_input.Primary_Input.solver == :GodunovScheme
-            GodunovStep!(user_input, _grid, W, U, dt)
+            GodunovStep!(user_input, _grid, W, U, F, dt)
         else 
             println("Defaulting to Lax until Scheme requested is supported...")
-            LaxFriedrichs_Step(W, U, F, dt, _grid.xcoord.ghost_zones, _grid.xcoord.total_zones, _grid.xcoord.spacing)
+            LaxFriedrichs_Step(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing)
         end
         solver_step_bench_f = time()
 
@@ -217,6 +228,13 @@ function run_simulation()
         # This is where I need to add in the source terms for either coordinate systems or physics #
         #                                                                                          #
         ############################################################################################
+
+        source_terms = nothing
+        if user_input.Primary_Input.coordinate_system == :cylindrical
+            source_terms = (1/_grid.coord1.all_centers) .* (F.density_flux, F.momentum_flux, F.total_energy_flux)
+        elseif user_input.Primary_Input.coordinate_system == :spherical
+            source_terms = (2/(_grid.coord1.all_centers)) .* (F.density_flux, F.momentum_flux, F.total_energy_flux)
+        end
 
         if user_input.Primary_Input.mode == :Benchmark
             println("The time it took to apply the boundary conditions was: $(boundary_condition_bench_f - boundary_condition_bench_i) seconds...")
@@ -229,7 +247,7 @@ function run_simulation()
         W.internal_energy_centers .= U.total_energy_centers ./ U.density_centers .- 0.5 .* W.velocity_centers .^ 2
 
         # This Clamping is for oscillatory schemes like FTCS and Richtmyer
-        Threads.@threads for i in 1:_grid.xcoord.total_zones
+        Threads.@threads for i in 1:_grid.coord1.total_zones
             @inbounds begin
                 if W.pressure_centers[i] < 0.0
                     W.pressure_centers[i] = 0.0
@@ -242,7 +260,7 @@ function run_simulation()
         end
 
         c = sqrt.(user_input.Secondary_Input.gamma .* W.pressure_centers ./ W.density_centers)
-        dt = user_input.Solver_Input.cfl * _grid.xcoord.spacing / maximum(abs.(W.velocity_centers) .+ c)
+        dt = user_input.Solver_Input.cfl * _grid.coord1.spacing / maximum(abs.(W.velocity_centers) .+ c)
         dt = min(dt, t_final - t)
         t += dt
 
@@ -256,7 +274,7 @@ function run_simulation()
                 h5open(h5_filename, mode) do file  # "a" = append mode
                     grp = create_group(file, groupname)
 
-                    grp["x"] = _grid.xcoord.all_centers
+                    grp["x"] = _grid.coord1.all_centers
 
                     grp["W/density"]      = W.density_centers
                     grp["W/velocity"]     = W.velocity_centers
