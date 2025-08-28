@@ -9,7 +9,7 @@ function collect_primary_input()
     solvers = [:FTCS, :LaxFriedrichs, :Richtmyer, :GodunovScheme]
     dimensions = ["1D", "2D", "3D"]
     coords = [:Cartesian, :Spherical, :Cylindrical]
-    modes = [:Standard, :Threaded, :GPU, :HPC]
+    modes = [:Standard, :Parallel, :GPU, :HPC]
     features = [:Animate, :Benchmark, :Debug, :Verbose, :None]
     boundaries = [:Reflecting, :Periodic, :Outflow, :None]
             

@@ -118,11 +118,7 @@ function run_simulation()
     anim = Animation()
     Log = nothing
     h5_filename = user_input.Primary_Input.filename * ".h5"
-    
-    if user_input.Primary_Input.mode == :Verbose
-        Log = open(user_input.Primary_Input.filename * ".txt", "w")
-    end
-    
+        
     t_final = user_input.Solver_Input.t_final
     t = 0.0
     counter = 0
@@ -188,46 +184,23 @@ function run_simulation()
     evolution_bench_i = time()
     while t < t_final
         counter += 1
-        if user_input.Primary_Input.mode == :Animate
-
-            p = plot(title="$(user_input.Primary_Input.problem) at t=$(round(t, digits=3)) s",
-                    xlabel="Position (cm)",
-                    ylabel="Density, Velocity, Pressure, Internal Energy",
-                    legend=:topright)
-            plot!(_grid.coord1.all_centers, W.density_centers/maximum(W.density_centers), label="Density")
-            plot!(_grid.coord1.all_centers, W.velocity_centers/maximum(abs.(W.velocity_centers)), label="Velocity")
-            plot!(_grid.coord1.all_centers, W.pressure_centers/maximum(W.pressure_centers), label="Pressure")
-            plot!(_grid.coord1.all_centers, W.internal_energy_centers/maximum(W.internal_energy_centers), label="Internal Energy")
-            frame(anim, p)
-            println("Step $counter Time: $t")
-        elseif user_input.Primary_Input.mode == :Verbose 
-            write_State_ShockTube_log(_grid, W, U, F, Log)
-        end
-
         boundary_condition_bench_i = time()
-        apply_boundary_conditions(user_input, U, _grid)
+        apply_boundary_conditions(user_input.Primary_Input.boundary_condition, U, _grid.coord1.zones, _grid.coord1.ghost_zones)
         boundary_condition_bench_f = time()
-
         solver_step_bench_i = time()
         if user_input.Primary_Input.solver == :FTCS
             FTCS_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
         elseif user_input.Primary_Input.solver == :LaxFriedrichs
-            LaxFriedrichs_Step(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing)
+            LaxFriedrichs_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
         elseif user_input.Primary_Input.solver == :Richtmyer
-            RichtmyerStep!(W, U, F, _grid, user_input,dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Secondary_Input.gamma)
+            RichtmyerStep!(W, U, F, _grid, user_input,dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Secondary_Input.gamma, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
         elseif user_input.Primary_Input.solver == :GodunovScheme
-            GodunovStep!(user_input, _grid, W, U, F, dt)
+            GodunovStep!(W, U, F, user_input.Solver_Input.reconstruction, user_input.Solver_Input.limiter, user_input.Solver_Input.flattening, user_input.Solver_Input.steepening, user_input.Primary_Input.boundary_condition, user_input.Solver_Input.riemanntype, user_input.Secondary_Input.gamma, _grid.coord1.spacing, dt, user_input.Solver_Input.cfl, user_input.Primary_Input.mode, user_input.Primary_Input.features, _grid.coord1.total_zones, _grid.coord1.zones, _grid.coord1.ghost_zones)
         else 
             println("Defaulting to Lax until Scheme requested is supported...")
-            LaxFriedrichs_Step(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing)
+            LaxFriedrichs_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
         end
         solver_step_bench_f = time()
-
-        ############################################################################################
-        #                                                                                          #
-        # This is where I need to add in the source terms for either coordinate systems or physics #
-        #                                                                                          #
-        ############################################################################################
 
         source_terms = nothing
         if user_input.Primary_Input.coordinate_system == :cylindrical
@@ -263,46 +236,40 @@ function run_simulation()
         dt = user_input.Solver_Input.cfl * _grid.coord1.spacing / maximum(abs.(W.velocity_centers) .+ c)
         dt = min(dt, t_final - t)
         t += dt
+   
+        if counter % 10 == 0
 
-        if user_input.Primary_Input.mode == :Verbose || user_input.Primary_Input.mode == :Standard
-            
-            if counter % 10 == 0
+            groupname = "step_$(counter)"
+            println("Saving snapshot to $h5_filename in group $groupname")
+            mode = isfile(h5_filename) ? "r+" : "w"
+            h5open(h5_filename, mode) do file  # "a" = append mode
+                grp = create_group(file, groupname)
 
-                groupname = "step_$(counter)"
-                println("Saving snapshot to $h5_filename in group $groupname")
-                mode = isfile(h5_filename) ? "r+" : "w"
-                h5open(h5_filename, mode) do file  # "a" = append mode
-                    grp = create_group(file, groupname)
+                grp["x"] = _grid.coord1.all_centers
 
-                    grp["x"] = _grid.coord1.all_centers
+                grp["W/density"]      = W.density_centers
+                grp["W/velocity"]     = W.velocity_centers
+                grp["W/pressure"]     = W.pressure_centers
+                grp["W/int_energy"]   = W.internal_energy_centers
 
-                    grp["W/density"]      = W.density_centers
-                    grp["W/velocity"]     = W.velocity_centers
-                    grp["W/pressure"]     = W.pressure_centers
-                    grp["W/int_energy"]   = W.internal_energy_centers
+                grp["U/density"]      = U.density_centers
+                grp["U/momentum"]     = U.momentum_centers
+                grp["U/total_energy"] = U.total_energy_centers
 
-                    grp["U/density"]      = U.density_centers
-                    grp["U/momentum"]     = U.momentum_centers
-                    grp["U/total_energy"] = U.total_energy_centers
+                grp["F/dens_flux"]    = F.density_flux
+                grp["F/mome_flux"]    = F.momentum_flux
+                grp["F/tot_ener_flux"]= F.total_energy_flux
 
-                    grp["F/dens_flux"]    = F.density_flux
-                    grp["F/mome_flux"]    = F.momentum_flux
-                    grp["F/tot_ener_flux"]= F.total_energy_flux
+                grp["time"] = t
 
-                    grp["time"] = t
-
-                end
-            
             end
         
         end
-
+        
     end
     evolution_bench_f = time()
-    if user_input.Primary_Input.mode == :Animate
-        gif(anim, user_input.Primary_Input.filename * ".gif", fps=60)
-    elseif user_input.Primary_Input.mode == :Verbose
-        close(Log)
+    if :Animate ∈ user_input.Primary_Input.features
+        animate_snapshots(h5_filename, "W/density", savefile=user_input.Primary_Input.filename * ".gif")
     end
     println("The time it took to evolve the whole problem was: $(evolution_bench_f - evolution_bench_i) seconds...")
 end

@@ -15,7 +15,7 @@ function FTCS_Step!(W, U::ConservativeVariables,
                     features::Vector{Symbol},
                     CFL)
 
-    if Debug ∉ features
+    if :Debug ∉ features
         FTCS_Log = nothing
 
         # 1) copy old solution
@@ -67,25 +67,15 @@ function FTCS_Step!(W, U::ConservativeVariables,
         end
         
         if :Verbose ∈ features
-            write(FTCS_Log, "\n Density:\n")
-            
-            solver_error_metrics(U_old.density_centers, U.density_centers, F.density_flux, CFL,
-            spacing, dt, FTCS_Log)
-            write(FTCS_Log, "\n Momentum:\n")
-            solver_error_metrics(U_old.momentum_centers, U.momentum_centers, F.momentum_flux, CFL,
-            spacing, dt, FTCS_Log)
-            
-            write(FTCS_Log, "\n Total Energy:\n")
-            solver_error_metrics(U_old.total_energy_centers, U.total_energy_centers, F.total_energy_flux, CFL,
-            spacing, dt, FTCS_Log)
-            
+            solver_diagnostics(U, U_old, F, CFL, spacing, dt; logfile=FTCS_Log)
             write_solver_output(FTCS_Log, W, U, F)
-            
+            close(FTCS_Log)
         end
         
-        close(FTCS_Log)
-    elseif Debug ∈ features
-        FTCS_Step_Debug!(W, U, F, dt, ghost_zones, total_zones, spacing, mode)
+        
+
+    elseif :Debug ∈ features
+        FTCS_Step_Debug!(W, U, F, dt, ghost_zones, total_zones, spacing, mode, features, CFL)
     end
     return nothing
 end
@@ -96,7 +86,9 @@ function FTCS_Step_Debug!(W, U::ConservativeVariables,
                     ghost_zones::Int,
                     total_zones::Int,
                     spacing::Float64, 
-                    mode::Symbol
+                    mode::Symbol, 
+                    features::Vector{Symbol}, 
+                    CFL::Float64
                     )
 
     println("You are debugging the FTCS step function...")
@@ -104,7 +96,14 @@ function FTCS_Step_Debug!(W, U::ConservativeVariables,
     try
         U_old = deepcopy(U)
         CalculateFlux!(W, U_old, F)
-        
+
+        if :Verbose ∈ features
+            println("You are using the FTCS method. This method is Unconditionally unstable for the hyperbolic conservation laws.\n It's sole purpose is educational.")
+            println("Opening log file for FTCS...")
+            FTCS_Log = open("FTCS_Log.txt", "a")
+            write_solver_input(FTCS_Log, W, U_old, F)
+        end
+
         # 2) compute new solution from old    
         if mode == :Standard
 
@@ -138,6 +137,12 @@ function FTCS_Step_Debug!(W, U::ConservativeVariables,
             @warn "HPC mode not yet implemented for FTCS... Release coming in v0.5...Defaulting to Parallel..."
             FTCS_Step!(W, U, F, dt, ghost_zones, total_zones, spacing, :Parallel, features, CFL)
 
+        end
+
+        if :Verbose ∈ features
+            solver_diagnostics(U, U_old, F, CFL, spacing, dt; logfile=FTCS_Log)
+            write_solver_output(FTCS_Log, W, U, F)
+            close(FTCS_Log)
         end
         
     catch e 

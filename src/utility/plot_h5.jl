@@ -2,70 +2,56 @@
 
 
 
-function plot_snapshot(h5_filename::String, groupname::String; saveplot=false)
+function plot_snapshot(h5_filename::String, snapshot::Int, variable::String)
+    # Construct the group name
+    groupname = "step_$snapshot"
+    
+    # Open the HDF5 file
     h5open(h5_filename, "r") do file
-        grp = file[groupname]
-
-        x = grp["x"][]
-        ρ = grp["W/density"][]
-        v = grp["W/velocity"][]
-        P = grp["W/pressure"][]
-        e = grp["W/int_energy"][]
-        t = grp["time"][]
-        
-        plt = plot(
-            x, ρ ./ maximum(ρ), label="Density", lw=2, xlabel="x", ylabel="Normalized Value",
-            title="Sod Shock Tube at t = $(round(t, digits=5)) s", legend=:topright
-        )
-        plot!(x, v ./ maximum(abs.(v)), label="Velocity", lw=2)
-        plot!(x, P ./ maximum(P), label="Pressure", lw=2)
-        plot!(x, e ./ maximum(e), label="Int. Energy", lw=2)
-
-        if saveplot
-            pngname = "plot_$(groupname).png"
-            println("📸 Saving plot to $pngname")
-            savefig(plt, pngname)
+        if haskey(file, groupname)
+            grp = file[groupname]
+            
+            # Read x
+            x = read(grp["x"])
+            
+            # Read the requested variable
+            if !haskey(grp, variable)
+                error("Variable '$variable' not found in group '$groupname'")
+            end
+            y = read(grp[variable])
+            
+            # Plot
+            plot(x, y, xlabel="x", ylabel=variable, title="Snapshot $snapshot", lw=2)
         else
-            display(plt)
+            error("Snapshot '$snapshot' not found in the file.")
         end
     end
 end
 
-function animate_snapshots(h5_filename::String; gif_filename::String="animation.gif", fps::Int=30)
-    groups = String[]
+function animate_snapshots(h5_filename::String, variable::String; savefile::String="animation.gif")
+    # Open HDF5 file
+    h5open(h5_filename, "r") do file
+        # Find all snapshot groups
+        snapshots = sort([parse(Int, split(name, "_")[end]) 
+                          for name in keys(file) if startswith(name, "step_")])
 
-    # Collect all group names that start with "snapshot"
-    h5open(h5_filename * ".h5", "r") do file
-        for name in keys(file)
-            if startswith(name, "snapshot")
-                push!(groups, name)
+        # Create animation
+        anim = @animate for snapshot in snapshots
+            println("Animating snapshot $snapshot")
+            grp = file["step_$snapshot"]
+            
+            if !haskey(grp, variable)
+                error("Variable '$variable' not found in group 'step_$snapshot'")
             end
+            
+            x = read(grp["x"])
+            y = read(grp[variable])
+            
+            plot(x, y, xlabel="x", ylabel=variable, 
+                 title="Snapshot $snapshot", lw=2)
         end
+
+        # Save the animation
+        gif(anim, savefile, fps=60)
     end
-
-    sort!(groups)  # Ensure correct time order
-
-    anim = @animate for groupname in groups
-        h5open(h5_filename, "r") do file
-            grp = file[groupname]
-
-            x = grp["x"][]
-            ρ = grp["W/density"][]
-            v = grp["W/velocity"][]
-            P = grp["W/pressure"][]
-            e = grp["W/int_energy"][]
-            t = grp["time"][]
-
-            plot(
-                x, ρ ./ maximum(ρ), label="Density", lw=2, xlabel="x", ylabel="Normalized Value",
-                title="t = $(round(t, digits=5)) s", legend=:topright, ylim=(0, 1.1)
-            )
-            plot!(x, v ./ maximum(abs.(v)), label="Velocity", lw=2)
-            plot!(x, P ./ maximum(P), label="Pressure", lw=2)
-            plot!(x, e ./ maximum(e), label="Int. Energy", lw=2)
-        end
-    end
-
-    println("Saving animation to $gif_filename")
-    gif(anim, gif_filename, fps=fps)
 end

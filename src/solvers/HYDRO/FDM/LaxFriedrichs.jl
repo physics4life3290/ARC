@@ -1,81 +1,136 @@
 
 
-
-
-
-function LaxFriedrichs_Step(W, U::ConservativeVariables, F::FluxVariables, dt::Float64, ghost_zones::Int, total_zones::Int, spacing::Float64)
+function LaxFriedrichs_Step!(W::PrimitiveVariables, U::ConservativeVariables, F::FluxVariables, dt::Float64, ghost_zones::Int, total_zones::Int, spacing::Float64, mode::Symbol, features::Vector{Symbol}, cfl)
     
+    LaxFriedrichs_Log = nothing
+    # Store old state for increment norms
+    U_old = deepcopy(U)
+    # Calculate fluxes
     CalculateFlux!(W, U, F)
-    
-    Threads.@threads for i in ghost_zones+1:total_zones-ghost_zones
+    if :Debug ∉ features
+        if :Verbose ∈ features
+            
+            LaxFriedrichs_Log = open("LaxFriedrichs_Log.txt", "a")
+            write_solver_input(LaxFriedrichs_Log, W, U_old, F)
+        end
         
-        @inbounds begin
+        if mode == :Standard
+
+            for i in ghost_zones+1:total_zones-ghost_zones
+                @inbounds begin
+                    U.density_centers[i]      = 0.5*(U.density_centers[i+1] + U.density_centers[i-1]) -
+                                                (dt/(2*spacing))*(F.density_flux[i+1]   - F.density_flux[i-1])
+                    U.momentum_centers[i]     = 0.5*(U.momentum_centers[i+1] + U.momentum_centers[i-1]) -
+                                                (dt/(2*spacing))*(F.momentum_flux[i+1]   - F.momentum_flux[i-1])
+                    U.total_energy_centers[i] = 0.5*(U.total_energy_centers[i+1] + U.total_energy_centers[i-1]) -
+                                                (dt/(2*spacing))*(F.total_energy_flux[i+1] - F.total_energy_flux[i-1])
+                end
+            end
+
+        elseif mode == :Parallel
         
-            U.density_centers[i]      = 0.5*(U.density_centers[i+1] + U.density_centers[i-1]) -
-                                (dt/(2*spacing))*(F.density_flux[i+1]   - F.density_flux[i-1])
-            U.momentum_centers[i]     = 0.5*(U.momentum_centers[i+1] + U.momentum_centers[i-1]) -
-                                (dt/(2*spacing))*(F.momentum_flux[i+1]   - F.momentum_flux[i-1])
-            U.total_energy_centers[i] = 0.5*(U.total_energy_centers[i+1] + U.total_energy_centers[i-1]) -
-                                (dt/(2*spacing))*(F.total_energy_flux[i+1] - F.total_energy_flux[i-1])
+            Threads.@threads for i in ghost_zones+1:total_zones-ghost_zones
+                @inbounds begin
+                    U.density_centers[i]      = 0.5*(U.density_centers[i+1] + U.density_centers[i-1]) -
+                                                (dt/(2*spacing))*(F.density_flux[i+1]   - F.density_flux[i-1])
+                    U.momentum_centers[i]     = 0.5*(U.momentum_centers[i+1] + U.momentum_centers[i-1]) -
+                                                (dt/(2*spacing))*(F.momentum_flux[i+1]   - F.momentum_flux[i-1])
+                    U.total_energy_centers[i] = 0.5*(U.total_energy_centers[i+1] + U.total_energy_centers[i-1]) -
+                                                (dt/(2*spacing))*(F.total_energy_flux[i+1] - F.total_energy_flux[i-1])
+                end
+            end
+
+        elseif mode == :GPU
+
+            @warn "GPU mode not yet implemented for Lax Friedrichs... Release coming in v0.2... Defaulting to Parallel..."
+            LaxFriedrichs_Step!(W, U, F, dt, ghost_zones, total_zones, spacing, :Parallel, features, cfl)
+
+        elseif mode == :HPC
+
+            @warn "HPC mode not yet implemented for Lax Friedrichs... Release coming in v0.5... Defaulting to Parallel..."
+            LaxFriedrichs_Step!(W, U, F, dt, ghost_zones, total_zones, spacing, :Parallel, features, cfl)
 
         end
 
+        if :Verbose ∈ features
+            solver_diagnostics(U, U_old, F, cfl, spacing, dt; logfile=LaxFriedrichs_Log)
+            write_solver_output(LaxFriedrichs_Log, W, U, F)
+            close(LaxFriedrichs_Log)
+        end 
+    elseif :Debug ∈ features
+        LaxFriedrichs_Step_Debug!(W, U, F, dt, ghost_zones, total_zones, spacing, mode, features, cfl)
     end
 
 end
 
-function LaxFriedrichs_Step!(W, U::ConservativeVariables, F::FluxVariables, dt::Float64, ghost_zones::Int, total_zones::Int, spacing::Float64; verbose=false)
+function LaxFriedrichs_Step_Debug!(W::PrimitiveVariables, U::ConservativeVariables, F::FluxVariables, dt::Float64, ghost_zones::Int, total_zones::Int, spacing::Float64, mode::Symbol, features::Vector{Symbol}, cfl)
     
-    # Store old state for increment norms
-    U_old = deepcopy(U)
+    try
+        LaxFriedrichs_Log = nothing
+        # Store old state for increment norms
+        U_old = deepcopy(U)
+        # Calculate fluxes
+        CalculateFlux!(W, U, F)
 
-    # Calculate fluxes
-    CalculateFlux!(W, U, F)
-    
-    Threads.@threads for i in ghost_zones+1:total_zones-ghost_zones
-        @inbounds begin
-            U.density_centers[i]      = 0.5*(U.density_centers[i+1] + U.density_centers[i-1]) -
-                                        (dt/(2*spacing))*(F.density_flux[i+1]   - F.density_flux[i-1])
-            U.momentum_centers[i]     = 0.5*(U.momentum_centers[i+1] + U.momentum_centers[i-1]) -
-                                        (dt/(2*spacing))*(F.momentum_flux[i+1]   - F.momentum_flux[i-1])
-            U.total_energy_centers[i] = 0.5*(U.total_energy_centers[i+1] + U.total_energy_centers[i-1]) -
-                                        (dt/(2*spacing))*(F.total_energy_flux[i+1] - F.total_energy_flux[i-1])
+        if :Verbose ∈ features
+            
+            LaxFriedrichs_Log = open("LaxFriedrichs_Log.txt", "a")
+            write_solver_input(LaxFriedrichs_Log, W, U_old, F)
         end
-    end
+        
+        if mode == :Standard
 
-    if verbose
-        # Compute step increments
-        Δρ = U.density_centers .- U_old.density_centers
-        Δm = U.momentum_centers .- U_old.momentum_centers
-        ΔE = U.total_energy_centers .- U_old.total_energy_centers
+            for i in ghost_zones+1:total_zones-ghost_zones
+                @inbounds begin
+                    U.density_centers[i]      = 0.5*(U.density_centers[i+1] + U.density_centers[i-1]) -
+                                                (dt/(2*spacing))*(F.density_flux[i+1]   - F.density_flux[i-1])
+                    U.momentum_centers[i]     = 0.5*(U.momentum_centers[i+1] + U.momentum_centers[i-1]) -
+                                                (dt/(2*spacing))*(F.momentum_flux[i+1]   - F.momentum_flux[i-1])
+                    U.total_energy_centers[i] = 0.5*(U.total_energy_centers[i+1] + U.total_energy_centers[i-1]) -
+                                                (dt/(2*spacing))*(F.total_energy_flux[i+1] - F.total_energy_flux[i-1])
+                end
+            end
 
-        # L2 norms
-        L2_ρ = norm(Δρ)
-        L2_m = norm(Δm)
-        L2_E = norm(ΔE)
+        elseif mode == :Parallel
+        
+            Threads.@threads for i in ghost_zones+1:total_zones-ghost_zones
+                @inbounds begin
+                    U.density_centers[i]      = 0.5*(U.density_centers[i+1] + U.density_centers[i-1]) -
+                                                (dt/(2*spacing))*(F.density_flux[i+1]   - F.density_flux[i-1])
+                    U.momentum_centers[i]     = 0.5*(U.momentum_centers[i+1] + U.momentum_centers[i-1]) -
+                                                (dt/(2*spacing))*(F.momentum_flux[i+1]   - F.momentum_flux[i-1])
+                    U.total_energy_centers[i] = 0.5*(U.total_energy_centers[i+1] + U.total_energy_centers[i-1]) -
+                                                (dt/(2*spacing))*(F.total_energy_flux[i+1] - F.total_energy_flux[i-1])
+                end
+            end
 
-        # L∞ norms
-        Linf_ρ = maximum(abs.(Δρ))
-        Linf_m = maximum(abs.(Δm))
-        Linf_E = maximum(abs.(ΔE))
+        elseif mode == :GPU
 
-        # Total variation
-        TV_ρ = sum(abs.(diff(U.density_centers)))
-        TV_m = sum(abs.(diff(U.momentum_centers)))
-        TV_E = sum(abs.(diff(U.total_energy_centers)))
+            @warn "GPU mode not yet implemented for Lax Friedrichs... Release coming in v0.2... Defaulting to Parallel..."
+            LaxFriedrichs_Step!(W, U, F, dt, ghost_zones, total_zones, spacing, :Parallel, features, cfl)
 
-        # Max/Min overshoot detection
-        max_ρ, min_ρ = maximum(U.density_centers), minimum(U.density_centers)
-        max_m, min_m = maximum(U.momentum_centers), minimum(U.momentum_centers)
-        max_E, min_E = maximum(U.total_energy_centers), minimum(U.total_energy_centers)
+        elseif mode == :HPC
 
-        println("=== Lax-Friedrichs Verbose Step ===")
-        println("dt = $dt, dx = $spacing")
-        println("L2 increments: density=$L2_ρ, momentum=$L2_m, energy=$L2_E")
-        println("L∞ increments: density=$Linf_ρ, momentum=$Linf_m, energy=$Linf_E")
-        println("Total Variation: density=$TV_ρ, momentum=$TV_m, energy=$TV_E")
-        println("Max/Min: density=($max_ρ,$min_ρ), momentum=($max_m,$min_m), energy=($max_E,$min_E)")
-        println("==================================")
+            @warn "HPC mode not yet implemented for Lax Friedrichs... Release coming in v0.5... Defaulting to Parallel..."
+            LaxFriedrichs_Step!(W, U, F, dt, ghost_zones, total_zones, spacing, :Parallel, features, cfl)
+
+        end
+
+        if :Verbose ∈ features
+            solver_diagnostics(U, U_old, F, cfl, spacing, dt; logfile=LaxFriedrichs_Log)
+            write_solver_output(LaxFriedrichs_Log, W, U, F)
+            close(LaxFriedrichs_Log)
+        end 
+    catch e 
+        println("The incoming data is 
+        Density: $(U_old.density_centers)
+        Length of Density: $(length(U_old.density_centers))
+        Momentum: $(U_old.momentum_centers)
+        Length of Momentum: $(length(U_old.momentum_centers))
+        Total Energy: $(U_old.total_energy_centers)
+        Length of Total Energy: $(length(U_old.total_energy_centers))")
+
+        @error "An error occured during Lax Friedrichs step: $e"
     end
 
 end
