@@ -28,7 +28,14 @@ function collect_primary_input()
     println("The dimension choice is:", dimension_choice)
     coord_choice = prompt_choice("Choose the coordinate system of your grid:", coords)
     solver_choice = prompt_choice("Choose a numerical solver:", solvers)
-    boundary_choice = prompt_choice("Choose boundary conditions:", boundaries)
+    boundary_choice = nothing
+
+    if :Benchmark ∈ feature_choice
+        boundary_choice = :None
+    else 
+        boundary_choice = prompt_choice("Choose boundary conditions:", boundaries)
+    end
+    
     println("Enter the name of the output file without the extension...")
     output_filename = readline()
 
