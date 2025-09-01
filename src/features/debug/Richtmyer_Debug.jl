@@ -3,15 +3,14 @@
 
 
 
-function RichtmyerStep!(W::PrimitiveVariables, U::ConservativeVariables,
+function RichtmyerStep_Debug!(W::PrimitiveVariables, U::ConservativeVariables,
                         F::FluxVariables,
                         _grid::CartesianGrid1D,
                         UserInput,
                         dt::Float64,
                         ghost_zones, total_zones, spacing, γ, mode, features, cfl)
-
-
-    if :Debug ∉ features
+    
+    try
         U_old = deepcopy(U)
         CalculateFlux!(W, U,F)
         if :Verbose ∈ features
@@ -62,12 +61,12 @@ function RichtmyerStep!(W::PrimitiveVariables, U::ConservativeVariables,
         elseif mode == :GPU
 
             @warn "GPU mode not yet implemented for Richtmyer Method... Release coming in v0.2... Defaulting to Parallel..."
-            Richtmyer_Step!(W, U, F, _grid, UserInput, dt, ghost_zones, total_zones, spacing, γ, mode, features, cfl)
+            Richtmyer_Step!(W, U, F, dt, ghost_zones, total_zones, spacing, :Parallel, features, cfl)
 
         elseif mode == :HPC
 
             @warn "HPC mode not yet implemented for Richtmyer Method... Release coming in v0.5... Defaulting to Parallel..."
-            Richtmyer_Step!(W, U, F, _grid, UserInput, dt, ghost_zones, total_zones, spacing, γ, mode, features, cfl)
+            Richtmyer_Step!(W, U, F, dt, ghost_zones, total_zones, spacing, :Parallel, features, cfl)
 
         end
 
@@ -114,13 +113,13 @@ function RichtmyerStep!(W::PrimitiveVariables, U::ConservativeVariables,
 
         elseif mode == :GPU
 
-            @warn "GPU mode not yet implemented for Richtmyer... Release coming in v0.2... Defaulting to Parallel..."
-            RichtmyerStep!(W, U, F, _grid, UserInput, dt, ghost_zones, total_zones, spacing, γ, :Parallel, features, cfl)
+            @warn "GPU mode not yet implemented for Lax Friedrichs... Release coming in v0.2... Defaulting to Parallel..."
+            RichtmyerStep!(W, U, F, dt, ghost_zones, total_zones, spacing, :Parallel, features, cfl)
 
         elseif mode == :HPC
 
             @warn "HPC mode not yet implemented for Lax Friedrichs... Release coming in v0.5... Defaulting to Parallel..."
-            RichtmyerStep!(W, U, F, _grid, UserInput, dt, ghost_zones, total_zones, spacing, γ, :Parallel, features, cfl)
+            RichtmyerStep!(W, U, F, dt, ghost_zones, total_zones, spacing, :Parallel, features, cfl)
 
         end
 
@@ -130,10 +129,16 @@ function RichtmyerStep!(W::PrimitiveVariables, U::ConservativeVariables,
             solver_diagnostics(U, U_old, F, cfl, spacing, dt; logfile=Richtmyer_Log)
             write_solver_output(Richtmyer_Log, W, U, F)
             close(Richtmyer_Log)
-        end
-    elseif :Debug ∈ features
-        RichtmyerStep_Debug!(W, U, F, _grid, UserInput, dt, ghost_zones, total_zones, spacing, γ, mode, features, cfl)
-    end 
+        end 
+    catch e 
+        println("The incoming data is 
+        Density: $(U_old.density_centers)
+        Length of Density: $(length(U_old.density_centers))
+        Momentum: $(U_old.momentum_centers)
+        Length of Momentum: $(length(U_old.momentum_centers))
+        Total Energy: $(U_old.total_energy_centers)
+        Length of Total Energy: $(length(U_old.total_energy_centers))")
+
+        @error "An error occured during Richtmyer step: $e"
+    end
 end
-
-

@@ -36,19 +36,21 @@ function animate_snapshots(h5_filename::String, variable::String; savefile::Stri
                           for name in keys(file) if startswith(name, "step_")])
 
         # Create animation
-        anim = @animate for snapshot in snapshots
-            println("Animating snapshot $snapshot")
-            grp = file["step_$snapshot"]
-            
-            if !haskey(grp, variable)
-                error("Variable '$variable' not found in group 'step_$snapshot'")
+        anim = @animate Threads.@threads for snapshot in snapshots
+            @inbounds begin
+                println("Animating snapshot $snapshot")
+                grp = file["step_$snapshot"]
+                
+                if !haskey(grp, variable)
+                    error("Variable '$variable' not found in group 'step_$snapshot'")
+                end
+                
+                x = read(grp["x"])
+                y = read(grp[variable])
+                
+                plot(x, y, xlabel="x", ylabel=variable, 
+                    title="Snapshot $snapshot", lw=2)
             end
-            
-            x = read(grp["x"])
-            y = read(grp[variable])
-            
-            plot(x, y, xlabel="x", ylabel=variable, 
-                 title="Snapshot $snapshot", lw=2)
         end
 
         # Save the animation

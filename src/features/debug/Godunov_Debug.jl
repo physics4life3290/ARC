@@ -3,12 +3,13 @@
 
 
 
-function GodunovStep!(W, U, F, reconstruction, limiter, flattening, steepening, boundary_condition, riemanntype, γ, spacing, dt, cfl, mode, features, total_zones, zones, ghost_zones)    
+function GodunovStep_Debug!(W, U, F, reconstruction, limiter, flattening, steepening, boundary_condition, riemanntype, γ, spacing, dt, cfl, mode, features, total_zones, zones, ghost_zones)    
 
-    Godunov_Log = nothing
+    try
+        Godunov_Log = nothing
 
-    U_old = deepcopy(U)
-    if :Debug ∉ features
+        U_old = deepcopy(U)
+
         if :Verbose ∈ features
             Godunov_Log = open("Godunov_Log.txt", "a")
             write_solver_input(Godunov_Log, W, U_old, F)
@@ -137,12 +138,15 @@ function GodunovStep!(W, U, F, reconstruction, limiter, flattening, steepening, 
             write_solver_output(Godunov_Log, W, U, F)
             close(Godunov_Log)
         end
-    elseif :Debug ∈ features
-        GodunovStep_Debug!(W, U, F, reconstruction, limiter, flattening, steepening, boundary_condition, riemanntype, γ, spacing, dt, cfl, mode, features, total_zones, zones, ghost_zones)    
+    catch e 
+        println("The incoming data is 
+        Density: $(U_old.density_centers)
+        Length of Density: $(length(U_old.density_centers))
+        Momentum: $(U_old.momentum_centers)
+        Length of Momentum: $(length(U_old.momentum_centers))
+        Total Energy: $(U_old.total_energy_centers)
+        Length of Total Energy: $(length(U_old.total_energy_centers))")
+
+        @error "An error occured during Richtmyer step: $e"
     end
-
 end
-
-
-
-
