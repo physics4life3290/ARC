@@ -5,7 +5,7 @@
 
 #FTCS Method 
 
-function FTCS_Step!(W, U::ConservativeVariables,
+function FTCS_Step!(W::PrimitiveVariables, U::ConservativeVariables,
                     F::FluxVariables,
                     dt::Float64,
                     ghost_zones::Int,
@@ -79,4 +79,3 @@ function FTCS_Step!(W, U::ConservativeVariables,
     end
     return nothing
 end
-

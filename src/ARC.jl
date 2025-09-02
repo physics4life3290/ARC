@@ -16,7 +16,6 @@ include("Codex_Trials.jl")
 include("utility/plot_h5.jl")
 include("../examples/examples_include.jl")
 include("../logs/run_log.jl")
-
 include("solvers/solvers_include.jl")
 include("fluxes/fluxes_include.jl")
 include("features/features_include.jl")
@@ -35,7 +34,5 @@ function run_Codex_Trials()
     Codex_Trials(user_input)
     
 end
-
-
 
 end

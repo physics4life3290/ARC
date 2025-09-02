@@ -4,18 +4,41 @@
 
 
 export run_Codex_Trials
+
+
+export FTCS_Step
+export FTCS_Step_Debug!
+export Dispatch_FTCS_I
+export Dispatch_FTCS_II
+export Dispatch_FTCS_III
+
+export LaxFriedrichs_Step
+export LaxFriedrichs_Step_Debug!
+export Dispatch_LaxFriedrichs_I
+export Dispatch_LaxFriedrichs_II
+export Dispatch_LaxFriedrichs_III
+
+
+export Richtmyer_Step
+export RichtmyerStep_Debug!
+export Dispatch_Richtmyer_I
+export Dispatch_Richtmyer_II
+export Dispatch_Richtmyer_III
+
+export GodunovStep!
+export GodunovStep_Debug!
+export Dispatch_Godunov_I
+export Dispatch_Godunov_II
+export Dispatch_Godunov_III
+export Dispatch_Godunov_IV
+
 export ConstructUniformAxis
 export Construct1DCartesian
 export Construct1DSpherical
 export Construct2DCartesian
 export Construct2DSpherical
-export FTCS_Step
-export LaxFriedrichs_Step
-export Richtmyer_Step
 export Riemann_HLL
 export Riemann_HLLC
 export ExactRiemannSolve!
-export Godunov_Step!
-export MUSCL_Step!
 export plot_snapshot
 export animate_snapshots

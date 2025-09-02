@@ -5,10 +5,11 @@
 
 function RichtmyerStep!(W::PrimitiveVariables, U::ConservativeVariables,
                         F::FluxVariables,
-                        _grid::CartesianGrid1D,
-                        UserInput,
-                        dt::Float64,
-                        ghost_zones, total_zones, spacing, γ, mode, features, cfl)
+                        ghost_zones::Int64, 
+                        total_zones::Int64,
+                        spacing::Float64,
+                        boundary_condition::Symbol,
+                        cfl::Float64, dt::Float64, γ::Float64, mode::Symbol, features::Vector{Symbol}, zones)
 
 
     if :Debug ∉ features
@@ -62,12 +63,12 @@ function RichtmyerStep!(W::PrimitiveVariables, U::ConservativeVariables,
         elseif mode == :GPU
 
             @warn "GPU mode not yet implemented for Richtmyer Method... Release coming in v0.2... Defaulting to Parallel..."
-            Richtmyer_Step!(W, U, F, _grid, UserInput, dt, ghost_zones, total_zones, spacing, γ, mode, features, cfl)
+            Richtmyer_Step!(W, U, F, ghost_zones, boundary_condition, dt, ghost_zones, total_zones, spacing, γ, mode, features, cfl)
 
         elseif mode == :HPC
 
             @warn "HPC mode not yet implemented for Richtmyer Method... Release coming in v0.5... Defaulting to Parallel..."
-            Richtmyer_Step!(W, U, F, _grid, UserInput, dt, ghost_zones, total_zones, spacing, γ, mode, features, cfl)
+            Richtmyer_Step!(W, U, F, ghost_zones, boundary_condition, dt, ghost_zones, total_zones, spacing, γ, mode, features, cfl)
 
         end
 
@@ -82,7 +83,7 @@ function RichtmyerStep!(W::PrimitiveVariables, U::ConservativeVariables,
         W_half.pressure_centers .= (γ - 1) .* (U_half.total_energy_centers .- 0.5 .* U_half.density_centers .* W_half.velocity_centers .^ 2)
         W_half.internal_energy_centers .= W_half.pressure_centers ./ ((γ-1) .* U_half.density_centers)
 
-        apply_boundary_conditions(UserInput.Primary_Input.boundary_condition, U_half, _grid.coord1.zones, _grid.coord1.ghost_zones)
+        apply_boundary_conditions(boundary_condition, U_half, zones, ghost_zones)
 
         # Compute F_half from U_half
         F_half = FluxVariables(
@@ -115,24 +116,24 @@ function RichtmyerStep!(W::PrimitiveVariables, U::ConservativeVariables,
         elseif mode == :GPU
 
             @warn "GPU mode not yet implemented for Richtmyer... Release coming in v0.2... Defaulting to Parallel..."
-            RichtmyerStep!(W, U, F, _grid, UserInput, dt, ghost_zones, total_zones, spacing, γ, :Parallel, features, cfl)
+            RichtmyerStep!(W, U, F, _grid, boundary_condition, dt, ghost_zones, total_zones, spacing, γ, :Parallel, features, cfl)
 
         elseif mode == :HPC
 
             @warn "HPC mode not yet implemented for Lax Friedrichs... Release coming in v0.5... Defaulting to Parallel..."
-            RichtmyerStep!(W, U, F, _grid, UserInput, dt, ghost_zones, total_zones, spacing, γ, :Parallel, features, cfl)
+            RichtmyerStep!(W, U, F, _grid, boundary_condition, dt, ghost_zones, total_zones, spacing, γ, :Parallel, features, cfl)
 
         end
 
         # Final boundary conditions on updated U
-        apply_boundary_conditions(UserInput.Primary_Input.boundary_condition, U, _grid.coord1.zones, _grid.coord1.ghost_zones)
+        apply_boundary_conditions(boundary_condition, U, zones, ghost_zones)
         if :Verbose ∈ features
             solver_diagnostics(U, U_old, F, cfl, spacing, dt; logfile=Richtmyer_Log)
             write_solver_output(Richtmyer_Log, W, U, F)
             close(Richtmyer_Log)
         end
     elseif :Debug ∈ features
-        RichtmyerStep_Debug!(W, U, F, _grid, UserInput, dt, ghost_zones, total_zones, spacing, γ, mode, features, cfl)
+        RichtmyerStep_Debug!(W, U, F, _grid, boundary_condition, dt, ghost_zones, total_zones, spacing, γ, mode, features, cfl)
     end 
 end
 

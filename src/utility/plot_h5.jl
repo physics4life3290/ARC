@@ -36,7 +36,7 @@ function animate_snapshots(h5_filename::String, variable::String; savefile::Stri
                           for name in keys(file) if startswith(name, "step_")])
 
         # Create animation
-        anim = @animate Threads.@threads for snapshot in snapshots
+        anim = @animate for snapshot in snapshots
             @inbounds begin
                 println("Animating snapshot $snapshot")
                 grp = file["step_$snapshot"]
