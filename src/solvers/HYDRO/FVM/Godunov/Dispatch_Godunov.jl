@@ -50,7 +50,11 @@ function Dispatch_Godunov_I(
 
     # Call solver
     GodunovStep!(W, U, F, reconstruction, limiter, flattening, steepening, boundary_condition, riemanntype, γ, spacing, dt, cfl, mode, features, N, zones, ghost_zones)
-    return W, U
+    ρ .= U.density_centers
+    u .= U.momentum_centers ./ U.density_centers
+    p .= (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.density_centers .* W.velocity_centers .^ 2)
+
+    return ρ, u, p
 end
 
 
@@ -97,7 +101,11 @@ function Dispatch_Godunov_II(
 
     # Call solver
     GodunovStep!(W, U, F, reconstruction, limiter, flattening, steepening, boundary_condition, riemanntype, γ, spacing, dt, cfl, mode, features, N, zones, ghost_zones)
-    return W, U
+    ρ .= U.density_centers
+    u .= U.momentum_centers ./ U.density_centers
+    p .= (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.density_centers .* W.velocity_centers .^ 2)
+
+    return ρ, u, p
 end
 
 function Dispatch_Godunov_III(
@@ -144,7 +152,11 @@ function Dispatch_Godunov_III(
     # Call solver
     GodunovStep!(W, U, F, reconstruction, limiter, flattening, steepening, boundary_condition, riemanntype, γ, spacing, dt, cfl, mode, features, N, zones, ghost_zones)
 
-    return W, U
+    ρ .= U.density_centers
+    u .= U.momentum_centers ./ U.density_centers
+    p .= (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.density_centers .* W.velocity_centers .^ 2)
+
+    return ρ, u, p
 end
 
 function Dispatch_Godunov_IV(
@@ -191,5 +203,9 @@ function Dispatch_Godunov_IV(
     # Call solver
     GodunovStep!(W, U, F, reconstruction, limiter, flattening, steepening, boundary_condition, riemanntype, γ, spacing, dt, cfl, mode, features, N, zones, ghost_zones)
 
-    return W, U
+    ρ .= U.density_centers
+    u .= U.momentum_centers ./ U.density_centers
+    p .= (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.density_centers .* W.velocity_centers .^ 2)
+
+    return ρ, u, p
 end

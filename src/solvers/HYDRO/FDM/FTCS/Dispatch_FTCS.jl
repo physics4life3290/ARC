@@ -38,8 +38,12 @@ function Dispatch_FTCS_I(
 
     # Call solver
     FTCS_Step!(W, U, F, dt, ghost_zones, N, spacing, mode, features, cfl)
+    
+    ρ .= U.density_centers
+    u .= U.momentum_centers ./ U.density_centers
+    p .= (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.density_centers .* W.velocity_centers .^ 2)
 
-    return W, U
+    return ρ, u, p
 end
 
 
@@ -76,12 +80,12 @@ function Dispatch_FTCS_II(
     F = FluxVariables(zeros(length(ρ)), zeros(length(ρ)), zeros(length(ρ)))
     ####### CALL SOLVER #######
     FTCS_Step!(W, U, F, dt, ghost_zones, N, spacing, mode, features, cfl)
-    println("Prepared PrimitiveVariables for solver:")
-    println("ρ = ", W.density_centers)
-    println("u = ", W.velocity_centers)
-    println("p = ", W.pressure_centers)
+    
+    ρ .= U.density_centers
+    u .= U.momentum_centers ./ U.density_centers
+    p .= (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.density_centers .* W.velocity_centers .^ 2)
 
-    return W, U
+    return ρ, u, p
 end
 
 function Dispatch_FTCS_III(
@@ -118,5 +122,9 @@ function Dispatch_FTCS_III(
     ####### CALL SOLVER #######
     FTCS_Step!(W, U, F, dt, ghost_zones, N, spacing, mode, features, cfl)
 
-    return W, U
+    ρ .= U.density_centers
+    u .= U.momentum_centers ./ U.density_centers
+    p .= (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.density_centers .* W.velocity_centers .^ 2)
+
+    return ρ, u, p
 end

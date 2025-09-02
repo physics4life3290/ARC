@@ -40,8 +40,12 @@ function Dispatch_Richtmyer_I(
  
     # Call solver
     RichtmyerStep!(W, U, F, ghost_zones, N, spacing, boundary_condition, cfl, dt, γ, mode, features, zones)
+    
+    ρ .= U.density_centers
+    u .= U.momentum_centers ./ U.density_centers
+    p .= (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.density_centers .* W.velocity_centers .^ 2)
 
-    return W, U
+    return ρ, u, p
 end
 
 
@@ -83,8 +87,11 @@ function Dispatch_Richtmyer_II(
  
     # Call solver
     RichtmyerStep!(W, U, F, ghost_zones, N, spacing, boundary_condition, cfl, dt, γ, mode, features, zones)
+    ρ .= U.density_centers
+    u .= U.momentum_centers ./ U.density_centers
+    p .= (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.density_centers .* W.velocity_centers .^ 2)
 
-    return W, U
+    return ρ, u, p
 end
 
 function Dispatch_Richtmyer_III(
@@ -126,5 +133,8 @@ function Dispatch_Richtmyer_III(
     # Call solver
     RichtmyerStep!(W, U, F, ghost_zones, N, spacing, boundary_condition, cfl, dt, γ, mode, features, zones)
 
-    return W, U
+    ρ .= U.density_centers
+    u .= U.momentum_centers ./ U.density_centers
+    p .= (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.density_centers .* W.velocity_centers .^ 2)
+    return ρ, u, p
 end

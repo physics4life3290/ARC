@@ -38,8 +38,11 @@ function Dispatch_LaxFriedrichs_I(
 
     # Call solver
     LaxFriedrichs_Step!(W, U, F, dt, ghost_zones, N, spacing, mode, features, cfl)
+    ρ .= U.density_centers
+    u .= U.momentum_centers ./ U.density_centers
+    p .= (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.density_centers .* W.velocity_centers .^ 2)
 
-    return W, U
+    return ρ, u, p
 end
 
 
@@ -76,7 +79,12 @@ function Dispatch_LaxFriedrichs_II(
     F = FluxVariables(zeros(length(ρ)), zeros(length(ρ)), zeros(length(ρ)))
     ####### CALL SOLVER #######
     LaxFriedrichs_Step!(W, U, F, dt, ghost_zones, N, spacing, mode, features, cfl)
-    return W, U
+    
+    ρ .= U.density_centers
+    u .= U.momentum_centers ./ U.density_centers
+    p .= (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.density_centers .* W.velocity_centers .^ 2)
+
+    return ρ, u, p
 end
 
 function Dispatch_LaxFriedrichs_III(
@@ -113,5 +121,9 @@ function Dispatch_LaxFriedrichs_III(
     ####### CALL SOLVER #######
     LaxFriedrichs_Step!(W, U, F, dt, ghost_zones, N, spacing, mode, features, cfl)
 
-    return W, U
+    ρ .= U.density_centers
+    u .= U.momentum_centers ./ U.density_centers
+    p .= (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.density_centers .* W.velocity_centers .^ 2)
+
+    return ρ, u, p
 end
