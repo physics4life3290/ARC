@@ -3,7 +3,7 @@
 
 
 
-function get_blasts(blasts)
+function get_blasts(P, x, γ,blasts)
     for blast in blasts
         dx = abs(x - blast.center)
         if dx <= blast.radius

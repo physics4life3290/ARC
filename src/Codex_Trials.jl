@@ -73,20 +73,24 @@ function Codex_Trials(user_input::UserInput)
             FTCS_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
         elseif user_input.Primary_Input.solver == :LaxFriedrichs
             LaxFriedrichs_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
+            #LaxFriedrichs_Consv_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
+            #LaxFriedrichs_Visc_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
         elseif user_input.Primary_Input.solver == :Richtmyer
             RichtmyerStep!(W, U, F, _grid, user_input,dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Secondary_Input.gamma, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
         elseif user_input.Primary_Input.solver == :GodunovScheme
-            GodunovStep!(W, U, F, user_input.Solver_Input.reconstruction, user_input.Solver_Input.limiter, user_input.Solver_Input.flattening, user_input.Solver_Input.steepening, user_input.Primary_Input.boundary_condition, user_input.Solver_Input.riemanntype, user_input.Secondary_Input.gamma, _grid.coord1.spacing, dt, user_input.Solver_Input.cfl, user_input.Primary_Input.mode, user_input.Primary_Input.features, _grid.coord1.total_zones, _grid.coord1.zones, _grid.coord1.ghost_zones)
+            GodunovStep!(W, U, F, user_input.Solver_Input.reconstruction, user_input.Solver_Input.limiter, user_input.Solver_Input.flattening, user_input.Solver_Input.steepening, user_input.Primary_Input.boundary_condition, user_input.Solver_Input.riemanntype, user_input.Secondary_Input.gamma, _grid.coord1.spacing, dt, user_input.Solver_Input.cfl, user_input.Primary_Input.mode, user_input.Primary_Input.features, _grid.coord1.total_zones, _grid.coord1.zones, _grid.coord1.ghost_zones, _grid.coord1.all_centers)
         else 
             println("Defaulting to Lax until Scheme requested is supported...")
             LaxFriedrichs_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
         end
 
+        # This is where I need to employ Strang Splitting. I need to incorporate a strategy to do this along with
+        # Lie Splitting. This should be a choice for the user as well. 
         source_terms = nothing
         if user_input.Primary_Input.coordinate_system == :cylindrical
-            source_terms = (1/_grid.coord1.all_centers) .* (F.density_flux, F.momentum_flux, F.total_energy_flux)
+            source_terms = dt/spacing .* (1/_grid.coord1.all_centers) .* (F.density_flux, F.momentum_flux, F.total_energy_flux)
         elseif user_input.Primary_Input.coordinate_system == :spherical
-            source_terms = (2/(_grid.coord1.all_centers)) .* (F.density_flux, F.momentum_flux, F.total_energy_flux)
+            source_terms = dt/spacing .* (2/(_grid.coord1.all_centers)) .* (F.density_flux, F.momentum_flux, F.total_energy_flux)
         end
 
         W.density_centers .= U.density_centers
@@ -129,13 +133,8 @@ function Codex_Trials(user_input::UserInput)
                 grp["W/pressure"]     = W.pressure_centers
                 grp["W/int_energy"]   = W.internal_energy_centers
 
-                grp["U/density"]      = U.density_centers
                 grp["U/momentum"]     = U.momentum_centers
                 grp["U/total_energy"] = U.total_energy_centers
-
-                grp["F/dens_flux"]    = F.density_flux
-                grp["F/mome_flux"]    = F.momentum_flux
-                grp["F/tot_ener_flux"]= F.total_energy_flux
 
                 grp["time"] = t
 
@@ -155,7 +154,7 @@ function Codex_Trials(user_input::UserInput)
 
     evolution_bench_f = time()
     if :Animate ∈ user_input.Primary_Input.features
-        animate_snapshots(h5_filename, "W/density", savefile=user_input.Primary_Input.filename * ".gif")
+        animate_snapshots(h5_filename, ["W/density", "W/velocity", "W/pressure", "W/int_energy"], savefile=user_input.Primary_Input.filename * ".gif")
     end
     println("The time it took to evolve the whole problem was: $(evolution_bench_f - evolution_bench_i) seconds...")
     dens_bench, vel_bench, press_bench = zeros(length(W.density_centers)), zeros(length(W.velocity_centers)), zeros(length(W.pressure_centers)) 
@@ -234,7 +233,7 @@ function Benchmark_Codex_Trials(user_input::UserInput)
         elseif user_input.Primary_Input.solver == :Richtmyer
             RichtmyerStep!(W, U, F, _grid, user_input,dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Secondary_Input.gamma, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
         elseif user_input.Primary_Input.solver == :GodunovScheme
-            GodunovStep!(W, U, F, user_input.Solver_Input.reconstruction, user_input.Solver_Input.limiter, user_input.Solver_Input.flattening, user_input.Solver_Input.steepening, user_input.Primary_Input.boundary_condition, user_input.Solver_Input.riemanntype, user_input.Secondary_Input.gamma, _grid.coord1.spacing, dt, user_input.Solver_Input.cfl, user_input.Primary_Input.mode, user_input.Primary_Input.features, _grid.coord1.total_zones, _grid.coord1.zones, _grid.coord1.ghost_zones)
+            GodunovStep!(W, U, F, user_input.Solver_Input.reconstruction, user_input.Solver_Input.limiter, user_input.Solver_Input.flattening, user_input.Solver_Input.steepening, user_input.Primary_Input.boundary_condition, user_input.Solver_Input.riemanntype, user_input.Secondary_Input.gamma, _grid.coord1.spacing, dt, user_input.Solver_Input.cfl, user_input.Primary_Input.mode, user_input.Primary_Input.features, _grid.coord1.total_zones, _grid.coord1.zones, _grid.coord1.ghost_zones, _grid.coord1.all_centers)
         else 
             println("Defaulting to Lax until Scheme requested is supported...")
             LaxFriedrichs_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)

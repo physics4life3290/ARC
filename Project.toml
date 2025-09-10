@@ -1,5 +1,5 @@
 name = "ARC"
-uuid = "a6cd394a-4b20-4d01-9253-501b8d9a9e33"
+uuid = "7f561723-13b9-4afe-916e-f1e2c1241049"
 authors = ["physics4life3290 <physics4life3290@gmail.com>"]
 version = "0.1.0"
 
@@ -16,6 +16,7 @@ Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 [compat]
 ArgParse = "1.2.0"
 BenchmarkTools = "1.6.0"
+CUDA = "5.8.3"
 Dates = "1.11.0"
 Printf = "1.11.0"
 Revise = "3.8.0"

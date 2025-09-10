@@ -2,8 +2,10 @@
 
 include("reconstructions/linear_reconstruction.jl")
 include("reconstructions/parabolic_reconstruction.jl")
+include("reconstructions/cubic_reconstruction.jl")
 include("reconstructions/steepening.jl")
 include("reconstructions/flattening/flattening.jl")
+include("reconstructions/enforce_monotonicity.jl")
 include("riemann_solvers/Exact/wave_function.jl")
 include("riemann_solvers/Exact/PVRS_guess.jl")
 include("riemann_solvers/Exact/solve_star_density.jl")

@@ -31,6 +31,7 @@ end
 struct SolverInput
     cfl::Float64
     t_final::Float64
+    split_choice::Symbol
     flattening::Bool
     steepening::Bool
     limiter::Union{Symbol, Nothing}

@@ -30,7 +30,7 @@ function Construct1DBlastWavePrimitives(_grid::CartesianGrid1D, user_input::User
             P = states[region_idx].pressure_centers
 
             # Add blast energy pressure boost if inside blast radius
-            P = get_blasts(blasts)
+            P = get_blasts(P, x, γ,blasts)
             e_int = P / ((γ - 1) * ρ)
 
             W.density_centers[i] = ρ

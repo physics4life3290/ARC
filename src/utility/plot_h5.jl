@@ -27,9 +27,9 @@ function plot_snapshot(h5_filename::String, snapshot::Int, variable::String)
         end
     end
 end
+using HDF5, Plots
 
-function animate_snapshots(h5_filename::String, variable::String; savefile::String="animation.gif")
-    # Open HDF5 file
+function animate_snapshots(h5_filename::String, variables::Vector{String}; savefile::String="animation.gif")
     h5open(h5_filename, "r") do file
         # Find all snapshot groups
         snapshots = sort([parse(Int, split(name, "_")[end]) 
@@ -38,22 +38,36 @@ function animate_snapshots(h5_filename::String, variable::String; savefile::Stri
         # Create animation
         anim = @animate for snapshot in snapshots
             @inbounds begin
-                println("Animating snapshot $snapshot")
+                println("Animating snapshot $snapshot out of $(length(snapshots)*10)")
                 grp = file["step_$snapshot"]
-                
-                if !haskey(grp, variable)
-                    error("Variable '$variable' not found in group 'step_$snapshot'")
-                end
-                
+
+                # read x once per snapshot
                 x = read(grp["x"])
-                y = read(grp[variable])
-                
-                plot(x, y, xlabel="x", ylabel=variable, 
-                    title="Snapshot $snapshot", lw=2)
+
+                # Skip creating placeholder; only plot real variables
+                first_plotted = false
+                for var in variables
+                    if !haskey(grp, var)
+                        @warn "Variable '$var' not found in group 'step_$snapshot'"
+                        continue
+                    end
+                    y = read(grp[var])
+                    y_norm = y ./ maximum(abs.(y))    # normalize by own max
+
+                    if !first_plotted
+                        # First actual variable initializes the plot
+                        plot(x, y_norm, label=var, xlabel="x", ylabel="Normalized value",
+                             title="Snapshot $snapshot", lw=2)
+                        first_plotted = true
+                    else
+                        # Subsequent variables are overplotted
+                        plot!(x, y_norm, label=var)
+                    end
+                end
             end
         end
 
         # Save the animation
-        gif(anim, savefile, fps=60)
+        gif(anim, savefile, fps=30)
     end
 end
