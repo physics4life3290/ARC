@@ -337,6 +337,10 @@ function Dispatch_Godunov_IV(
         dt = dt/2
     end
 
+    if operator_splitting == :None
+        GodunovStep!(W, U, F, reconstruction, limiter, flattening, steepening, boundary_condition, riemanntype, γ, spacing, dt, cfl, mode, features, N, zones, ghost_zones, _grid)
+        return ρ, u, p
+    end
     # Call solver
     GodunovStep!(W, U, F, reconstruction, limiter, flattening, steepening, boundary_condition, riemanntype, γ, spacing, dt, cfl, mode, features, N, zones, ghost_zones, _grid)
     
@@ -348,38 +352,29 @@ function Dispatch_Godunov_IV(
         dt = dt*2
     end
 
-    if coordinate_system == :cylindrical
-        dens_source = (1/_grid.coord1.all_centers) .* F.density_flux
-        mom_source = (1/_grid.coord1.all_centers) .* F.momentum_flux
-        tot_energy_source = (1/_grid.coord1.all_centers) .* F.total_energy_flux
-        U.density_centers .-= dt/spacing .* dens_source
-        U.momentum_centers .-= dt/spacing .* mom_source
-        U.total_energy_centers .-= dt/spacing .* tot_energy_source
-    elseif coordinate_system == :spherical
-        dens_source = (2/_grid.coord1.all_centers) .* F.density_flux
-        mom_source = (2/_grid.coord1.all_centers) .* F.momentum_flux
-        tot_energy_source = (2/_grid.coord1.all_centers) .* F.total_energy_flux
-        U.density_centers .-= dt/spacing .* dens_source
-        U.momentum_centers .-= dt/spacing .* mom_source
-        U.total_energy_centers .-= dt/spacing .* tot_energy_source
+    if operator_splitting == :Lie || operator_splitting ==:Strang
+        if coordinate_system == :cylindrical
+            dens_source = (1/_grid.coord1.all_centers) .* F.density_flux
+            mom_source = (1/_grid.coord1.all_centers) .* F.momentum_flux
+            tot_energy_source = (1/_grid.coord1.all_centers) .* F.total_energy_flux
+            U.density_centers .-= dt/spacing .* dens_source
+            U.momentum_centers .-= dt/spacing .* mom_source
+            U.total_energy_centers .-= dt/spacing .* tot_energy_source
+        elseif coordinate_system == :spherical
+            dens_source = (2/_grid.coord1.all_centers) .* F.density_flux
+            mom_source = (2/_grid.coord1.all_centers) .* F.momentum_flux
+            tot_energy_source = (2/_grid.coord1.all_centers) .* F.total_energy_flux
+            U.density_centers .-= dt/spacing .* dens_source
+            U.momentum_centers .-= dt/spacing .* mom_source
+            U.total_energy_centers .-= dt/spacing .* tot_energy_source
+        end
     end
 
-    if user_input.Solver_Input.split_choice == :Strang
-        dt = dt/2
-        W.density_centers .= U.density_centers
-        W.velocity_centers .= U.momentum_centers ./ U.density_centers
-        W.pressure_centers .= (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.density_centers .* W.velocity_centers .^ 2)
-        W.internal_energy_centers .= U.total_energy_centers ./ U.density_centers .- 0.5 .* W.velocity_centers .^ 2
-        F.density_flux .= U.momentum_centers
-        F.momentum_flux .= U.momentum_centers.^2 ./ U.density_centers + (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)
-        F.total_energy_flux .= (U.total_energy_centers .+ (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)) .* (U.momentum_centers ./ U.density_centers)
-        GodunovStep!(W, U, F, reconstruction, limiter, flattening, steepening, boundary_condition, riemanntype, γ, spacing, dt, cfl, mode, features, N, zones, ghost_zones, _grid)
-        dt = dt * 2
+    if operator_splitting == :Strang || operator_splitting ==:Lie
+        ρ .= U.density_centers
+        u .= U.momentum_centers ./ U.density_centers
+        p .= (γ - 1) .* (U.total_energy_centers .- 0.5 .* U.density_centers .* W.velocity_centers .^ 2)
+        return ρ, u, p
     end
 
-    ρ .= U.density_centers
-    u .= U.momentum_centers ./ U.density_centers
-    p .= (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.density_centers .* W.velocity_centers .^ 2)
-    
-    return ρ, u, p
 end
