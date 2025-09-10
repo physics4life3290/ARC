@@ -37,9 +37,50 @@ function Dispatch_Richtmyer_I(
     W = PrimitiveVariables(ρ, u, p, ϵ, nothing, nothing, nothing, nothing)
     U = ConservativeVariables(ρ, ρ .* u, ρ .* ϵ .+ 0.5 .* ρ .* u.^2, nothing, nothing, nothing)
     F = FluxVariables(zeros(N), zeros(N), zeros(N))
- 
+    
+    if operator_splitting == :Strang
+        dt = dt/2
+    end
+
     # Call solver
     RichtmyerStep!(W, U, F, ghost_zones, N, spacing, boundary_condition, cfl, dt, γ, mode, features, zones)
+    
+    F.density_flux .= U.momentum_centers
+    F.momentum_flux .= U.momentum_centers.^2 ./ U.density_centers + (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)
+    F.total_energy_flux .= (U.total_energy_centers .+ (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)) .* (U.momentum_centers ./ U.density_centers)
+    
+    if operator_splitting == :Strang
+        dt = dt*2
+    end
+
+    if coordinate_system == :cylindrical
+        dens_source = (1/_grid.coord1.all_centers) .* F.density_flux
+        mom_source = (1/_grid.coord1.all_centers) .* F.momentum_flux
+        tot_energy_source = (1/_grid.coord1.all_centers) .* F.total_energy_flux
+        U.density_centers .-= dt/spacing .* dens_source
+        U.momentum_centers .-= dt/spacing .* mom_source
+        U.total_energy_centers .-= dt/spacing .* tot_energy_source
+    elseif coordinate_system == :spherical
+        dens_source = (2/_grid.coord1.all_centers) .* F.density_flux
+        mom_source = (2/_grid.coord1.all_centers) .* F.momentum_flux
+        tot_energy_source = (2/_grid.coord1.all_centers) .* F.total_energy_flux
+        U.density_centers .-= dt/spacing .* dens_source
+        U.momentum_centers .-= dt/spacing .* mom_source
+        U.total_energy_centers .-= dt/spacing .* tot_energy_source
+    end
+
+    if user_input.Solver_Input.split_choice == :Strang
+        dt = dt/2
+        W.density_centers .= U.density_centers
+        W.velocity_centers .= U.momentum_centers ./ U.density_centers
+        W.pressure_centers .= (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.density_centers .* W.velocity_centers .^ 2)
+        W.internal_energy_centers .= U.total_energy_centers ./ U.density_centers .- 0.5 .* W.velocity_centers .^ 2
+        F.density_flux .= U.momentum_centers
+        F.momentum_flux .= U.momentum_centers.^2 ./ U.density_centers + (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)
+        F.total_energy_flux .= (U.total_energy_centers .+ (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)) .* (U.momentum_centers ./ U.density_centers)
+        RichtmyerStep!(W, U, F, ghost_zones, N, spacing, boundary_condition, cfl, dt, γ, mode, features, zones)
+        dt = dt * 2
+    end
     
     ρ .= U.density_centers
     u .= U.momentum_centers ./ U.density_centers
@@ -84,9 +125,51 @@ function Dispatch_Richtmyer_II(
     W = PrimitiveVariables(ρ, u, p, ϵ, nothing, nothing, nothing, nothing)
     U = ConservativeVariables(ρ, ρ .* u, ρ .* ϵ .+ 0.5 .* ρ .* u.^2, nothing, nothing, nothing)
     F = FluxVariables(zeros(N), zeros(N), zeros(N))
- 
+    
+    if operator_splitting == :Strang
+        dt = dt/2
+    end
+
     # Call solver
     RichtmyerStep!(W, U, F, ghost_zones, N, spacing, boundary_condition, cfl, dt, γ, mode, features, zones)
+    
+    F.density_flux .= U.momentum_centers
+    F.momentum_flux .= U.momentum_centers.^2 ./ U.density_centers + (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)
+    F.total_energy_flux .= (U.total_energy_centers .+ (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)) .* (U.momentum_centers ./ U.density_centers)
+    
+    if operator_splitting == :Strang
+        dt = dt*2
+    end
+
+    if coordinate_system == :cylindrical
+        dens_source = (1/_grid.coord1.all_centers) .* F.density_flux
+        mom_source = (1/_grid.coord1.all_centers) .* F.momentum_flux
+        tot_energy_source = (1/_grid.coord1.all_centers) .* F.total_energy_flux
+        U.density_centers .-= dt/spacing .* dens_source
+        U.momentum_centers .-= dt/spacing .* mom_source
+        U.total_energy_centers .-= dt/spacing .* tot_energy_source
+    elseif coordinate_system == :spherical
+        dens_source = (2/_grid.coord1.all_centers) .* F.density_flux
+        mom_source = (2/_grid.coord1.all_centers) .* F.momentum_flux
+        tot_energy_source = (2/_grid.coord1.all_centers) .* F.total_energy_flux
+        U.density_centers .-= dt/spacing .* dens_source
+        U.momentum_centers .-= dt/spacing .* mom_source
+        U.total_energy_centers .-= dt/spacing .* tot_energy_source
+    end
+
+    if user_input.Solver_Input.split_choice == :Strang
+        dt = dt/2
+        W.density_centers .= U.density_centers
+        W.velocity_centers .= U.momentum_centers ./ U.density_centers
+        W.pressure_centers .= (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.density_centers .* W.velocity_centers .^ 2)
+        W.internal_energy_centers .= U.total_energy_centers ./ U.density_centers .- 0.5 .* W.velocity_centers .^ 2
+        F.density_flux .= U.momentum_centers
+        F.momentum_flux .= U.momentum_centers.^2 ./ U.density_centers + (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)
+        F.total_energy_flux .= (U.total_energy_centers .+ (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)) .* (U.momentum_centers ./ U.density_centers)
+        RichtmyerStep!(W, U, F, ghost_zones, N, spacing, boundary_condition, cfl, dt, γ, mode, features, zones)
+        dt = dt * 2
+    end
+    
     ρ .= U.density_centers
     u .= U.momentum_centers ./ U.density_centers
     p .= (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.density_centers .* W.velocity_centers .^ 2)
@@ -129,12 +212,54 @@ function Dispatch_Richtmyer_III(
     W = PrimitiveVariables(ρ, u, p, ϵ, nothing, nothing, nothing, nothing)
     U = ConservativeVariables(ρ, ρ .* u, ρ .* ϵ .+ 0.5 .* ρ .* u.^2, nothing, nothing, nothing)
     F = FluxVariables(zeros(N), zeros(N), zeros(N))
- 
+    
+    if operator_splitting == :Strang
+        dt = dt/2
+    end
+
     # Call solver
     RichtmyerStep!(W, U, F, ghost_zones, N, spacing, boundary_condition, cfl, dt, γ, mode, features, zones)
+    
+    F.density_flux .= U.momentum_centers
+    F.momentum_flux .= U.momentum_centers.^2 ./ U.density_centers + (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)
+    F.total_energy_flux .= (U.total_energy_centers .+ (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)) .* (U.momentum_centers ./ U.density_centers)
+    
+    if operator_splitting == :Strang
+        dt = dt*2
+    end
 
+    if coordinate_system == :cylindrical
+        dens_source = (1/_grid.coord1.all_centers) .* F.density_flux
+        mom_source = (1/_grid.coord1.all_centers) .* F.momentum_flux
+        tot_energy_source = (1/_grid.coord1.all_centers) .* F.total_energy_flux
+        U.density_centers .-= dt/spacing .* dens_source
+        U.momentum_centers .-= dt/spacing .* mom_source
+        U.total_energy_centers .-= dt/spacing .* tot_energy_source
+    elseif coordinate_system == :spherical
+        dens_source = (2/_grid.coord1.all_centers) .* F.density_flux
+        mom_source = (2/_grid.coord1.all_centers) .* F.momentum_flux
+        tot_energy_source = (2/_grid.coord1.all_centers) .* F.total_energy_flux
+        U.density_centers .-= dt/spacing .* dens_source
+        U.momentum_centers .-= dt/spacing .* mom_source
+        U.total_energy_centers .-= dt/spacing .* tot_energy_source
+    end
+
+    if user_input.Solver_Input.split_choice == :Strang
+        dt = dt/2
+        W.density_centers .= U.density_centers
+        W.velocity_centers .= U.momentum_centers ./ U.density_centers
+        W.pressure_centers .= (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.density_centers .* W.velocity_centers .^ 2)
+        W.internal_energy_centers .= U.total_energy_centers ./ U.density_centers .- 0.5 .* W.velocity_centers .^ 2
+        F.density_flux .= U.momentum_centers
+        F.momentum_flux .= U.momentum_centers.^2 ./ U.density_centers + (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)
+        F.total_energy_flux .= (U.total_energy_centers .+ (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)) .* (U.momentum_centers ./ U.density_centers)
+        RichtmyerStep!(W, U, F, ghost_zones, N, spacing, boundary_condition, cfl, dt, γ, mode, features, zones)
+        dt = dt * 2
+    end
+    
     ρ .= U.density_centers
     u .= U.momentum_centers ./ U.density_centers
     p .= (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.density_centers .* W.velocity_centers .^ 2)
+    
     return ρ, u, p
 end

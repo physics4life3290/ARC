@@ -94,7 +94,6 @@ function Codex_Trials(user_input::UserInput)
 
         # This is where I need to employ Strang Splitting. I need to incorporate a strategy to do this along with
         # Lie Splitting. This should be a choice for the user as well. 
-        source_terms = nothing
         F.density_flux .= U.momentum_centers
         F.momentum_flux .= U.momentum_centers.^2 ./ U.density_centers + (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)
         F.total_energy_flux .= (U.total_energy_centers .+ (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)) .* (U.momentum_centers ./ U.density_centers)
@@ -111,7 +110,6 @@ function Codex_Trials(user_input::UserInput)
             U.momentum_centers .-= dt/spacing .* mom_source
             U.total_energy_centers .-= dt/spacing .* tot_energy_source
         elseif user_input.Primary_Input.coordinate_system == :spherical
-            source_terms = dt/spacing .* (2/(_grid.coord1.all_centers)) .* (F.density_flux, F.momentum_flux, F.total_energy_flux)
             dens_source = (2/_grid.coord1.all_centers) .* F.density_flux
             mom_source = (2/_grid.coord1.all_centers) .* F.momentum_flux
             tot_energy_source = (2/_grid.coord1.all_centers) .* F.total_energy_flux
