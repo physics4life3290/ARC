@@ -3,6 +3,23 @@
 
 
 
+function HYDRO_Step!(W, U, F, dt, _grid, user_input)
+    if user_input.Primary_Input.solver == :FTCS
+        FTCS_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
+    elseif user_input.Primary_Input.solver == :LaxFriedrichs
+        LaxFriedrichs_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
+        #LaxFriedrichs_Consv_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
+        #LaxFriedrichs_Visc_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
+    elseif user_input.Primary_Input.solver == :Richtmyer
+        RichtmyerStep!(W, U, F, _grid, user_input,dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Secondary_Input.gamma, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
+    elseif user_input.Primary_Input.solver == :GodunovScheme
+        GodunovStep!(W, U, F, user_input.Solver_Input.reconstruction, user_input.Solver_Input.limiter, user_input.Solver_Input.flattening, user_input.Solver_Input.steepening, user_input.Primary_Input.boundary_condition, user_input.Solver_Input.riemanntype, user_input.Secondary_Input.gamma, _grid.coord1.spacing, dt, user_input.Solver_Input.cfl, user_input.Primary_Input.mode, user_input.Primary_Input.features, _grid.coord1.total_zones, _grid.coord1.zones, _grid.coord1.ghost_zones, _grid.coord1.all_centers)
+    else 
+        println("Defaulting to Lax until Scheme requested is supported...")
+        LaxFriedrichs_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
+    end
+end
+
 function Codex_Trials(user_input::UserInput)
 
     init_bench_i, init_bench_f, prim_var_construct_i, prim_var_construct_f, evolution_bench_i, evolution_bench_f = nothing, nothing, nothing, nothing, nothing, nothing
@@ -69,28 +86,51 @@ function Codex_Trials(user_input::UserInput)
         
         apply_boundary_conditions(user_input.Primary_Input.boundary_condition, U, _grid.coord1.zones, _grid.coord1.ghost_zones)
         
-        if user_input.Primary_Input.solver == :FTCS
-            FTCS_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
-        elseif user_input.Primary_Input.solver == :LaxFriedrichs
-            LaxFriedrichs_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
-            #LaxFriedrichs_Consv_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
-            #LaxFriedrichs_Visc_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
-        elseif user_input.Primary_Input.solver == :Richtmyer
-            RichtmyerStep!(W, U, F, _grid, user_input,dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Secondary_Input.gamma, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
-        elseif user_input.Primary_Input.solver == :GodunovScheme
-            GodunovStep!(W, U, F, user_input.Solver_Input.reconstruction, user_input.Solver_Input.limiter, user_input.Solver_Input.flattening, user_input.Solver_Input.steepening, user_input.Primary_Input.boundary_condition, user_input.Solver_Input.riemanntype, user_input.Secondary_Input.gamma, _grid.coord1.spacing, dt, user_input.Solver_Input.cfl, user_input.Primary_Input.mode, user_input.Primary_Input.features, _grid.coord1.total_zones, _grid.coord1.zones, _grid.coord1.ghost_zones, _grid.coord1.all_centers)
-        else 
-            println("Defaulting to Lax until Scheme requested is supported...")
-            LaxFriedrichs_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
+        if user_input.Solver_Input.split_choice == :Strang
+            dt = dt/2
         end
+
+        HYDRO_Step!(W, U, F, dt, _grid, user_input)
 
         # This is where I need to employ Strang Splitting. I need to incorporate a strategy to do this along with
         # Lie Splitting. This should be a choice for the user as well. 
         source_terms = nothing
+        F.density_flux .= U.momentum_centers
+        F.momentum_flux .= U.momentum_centers.^2 ./ U.density_centers + (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)
+        F.total_energy_flux .= (U.total_energy_centers .+ (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)) .* (U.momentum_centers ./ U.density_centers)
+        
+        if user_input.Solver_Input.split_choice == :Strang
+            dt = dt * 2
+        end
+
         if user_input.Primary_Input.coordinate_system == :cylindrical
-            source_terms = dt/spacing .* (1/_grid.coord1.all_centers) .* (F.density_flux, F.momentum_flux, F.total_energy_flux)
+            dens_source = (1/_grid.coord1.all_centers) .* F.density_flux
+            mom_source = (1/_grid.coord1.all_centers) .* F.momentum_flux
+            tot_energy_source = (1/_grid.coord1.all_centers) .* F.total_energy_flux
+            U.density_centers .-= dt/spacing .* dens_source
+            U.momentum_centers .-= dt/spacing .* mom_source
+            U.total_energy_centers .-= dt/spacing .* tot_energy_source
         elseif user_input.Primary_Input.coordinate_system == :spherical
             source_terms = dt/spacing .* (2/(_grid.coord1.all_centers)) .* (F.density_flux, F.momentum_flux, F.total_energy_flux)
+            dens_source = (2/_grid.coord1.all_centers) .* F.density_flux
+            mom_source = (2/_grid.coord1.all_centers) .* F.momentum_flux
+            tot_energy_source = (2/_grid.coord1.all_centers) .* F.total_energy_flux
+            U.density_centers .-= dt/spacing .* dens_source
+            U.momentum_centers .-= dt/spacing .* mom_source
+            U.total_energy_centers .-= dt/spacing .* tot_energy_source
+        end
+
+        if user_input.Solver_Input.split_choice == :Strang
+            dt = dt/2
+            W.density_centers .= U.density_centers
+            W.velocity_centers .= U.momentum_centers ./ U.density_centers
+            W.pressure_centers .= (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.density_centers .* W.velocity_centers .^ 2)
+            W.internal_energy_centers .= U.total_energy_centers ./ U.density_centers .- 0.5 .* W.velocity_centers .^ 2
+            F.density_flux .= U.momentum_centers
+            F.momentum_flux .= U.momentum_centers.^2 ./ U.density_centers + (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)
+            F.total_energy_flux .= (U.total_energy_centers .+ (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)) .* (U.momentum_centers ./ U.density_centers)
+            HYDRO_Step!(W, U, F, dt, _grid, user_input)
+            dt = dt * 2
         end
 
         W.density_centers .= U.density_centers
