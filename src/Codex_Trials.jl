@@ -3,20 +3,27 @@
 
 
 
-function HYDRO_Step!(W, U, F, dt, _grid, user_input)
-    if user_input.Primary_Input.solver == :FTCS
-        FTCS_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
-    elseif user_input.Primary_Input.solver == :LaxFriedrichs
-        LaxFriedrichs_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
-        #LaxFriedrichs_Consv_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
-        #LaxFriedrichs_Visc_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
-    elseif user_input.Primary_Input.solver == :Richtmyer
-        RichtmyerStep!(W, U, F, _grid, user_input,dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Secondary_Input.gamma, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
-    elseif user_input.Primary_Input.solver == :GodunovScheme
-        GodunovStep!(W, U, F, user_input.Solver_Input.reconstruction, user_input.Solver_Input.limiter, user_input.Solver_Input.flattening, user_input.Solver_Input.steepening, user_input.Primary_Input.boundary_condition, user_input.Solver_Input.riemanntype, user_input.Secondary_Input.gamma, _grid.coord1.spacing, dt, user_input.Solver_Input.cfl, user_input.Primary_Input.mode, user_input.Primary_Input.features, _grid.coord1.total_zones, _grid.coord1.zones, _grid.coord1.ghost_zones, _grid.coord1.all_centers)
-    else 
+function HYDRO_Step!(
+        W, U, F, dt,
+        ghost_zones, total_zones, spacing, zones, all_centers,
+        mode, features, cfl, solver,
+        reconstruction, limiter, flattening, steepening,
+        boundary_condition, riemanntype, gamma
+    )
+    if solver == :FTCS
+        FTCS_Step!(W, U, F, dt, ghost_zones, total_zones, spacing, mode, features, cfl)
+    elseif solver == :LaxFriedrichs
+        LaxFriedrichs_Step!(W, U, F, dt, ghost_zones, total_zones, spacing, mode, features, cfl)
+    elseif solver == :Richtmyer
+        RichtmyerStep!(W, U, F, _grid, user_input, dt, ghost_zones, total_zones, spacing, gamma, mode, features, cfl)
+    elseif solver == :GodunovScheme
+        GodunovStep!(W, U, F, reconstruction, limiter, flattening, steepening,
+                     boundary_condition, riemanntype, gamma,
+                     spacing, dt, cfl, mode, features,
+                     total_zones, zones, ghost_zones, all_centers)
+    else
         println("Defaulting to Lax until Scheme requested is supported...")
-        LaxFriedrichs_Step!(W, U, F, dt, _grid.coord1.ghost_zones, _grid.coord1.total_zones, _grid.coord1.spacing, user_input.Primary_Input.mode, user_input.Primary_Input.features, user_input.Solver_Input.cfl)
+        LaxFriedrichs_Step!(W, U, F, dt, ghost_zones, total_zones, spacing, mode, features, cfl)
     end
 end
 
@@ -69,6 +76,20 @@ function Codex_Trials(user_input::UserInput)
             W = Construct1DBlastWavePrimitives(_grid, user_input)
         end
 
+    elseif user_input.Primary_Input.problem == :Custom
+
+        if user_input.Primary_Input.dimension == 1
+
+            pressures = [state.pressure_centers for state in user_input.Secondary_Input.ambient_states]
+            densities = [state.density_centers for state in user_input.Secondary_Input.ambient_states]
+
+            c = sqrt(user_input.Secondary_Input.gamma * maximum(pressures) / maximum(densities))
+            dt = user_input.Solver_Input.cfl * _grid.coord1.spacing / c
+
+            W = Construct1DCustomPrimitives(_grid, user_input)
+            
+        end
+
     end
 
     U = ConservativeVariables(W.density_centers, W.density_centers.* W.velocity_centers, 
@@ -90,13 +111,31 @@ function Codex_Trials(user_input::UserInput)
             dt = dt/2
         end
 
-        HYDRO_Step!(W, U, F, dt, _grid, user_input)
+        HYDRO_Step!(W, U, F, dt,
+            _grid.coord1.ghost_zones,
+            _grid.coord1.total_zones,
+            _grid.coord1.spacing,
+            _grid.coord1.zones,
+            _grid.coord1.all_centers,
+            user_input.Primary_Input.mode,
+            user_input.Primary_Input.features,
+            user_input.Solver_Input.cfl,
+            user_input.Primary_Input.solver,
+            user_input.Solver_Input.reconstruction,
+            user_input.Solver_Input.limiter,
+            user_input.Solver_Input.flattening,
+            user_input.Solver_Input.steepening,
+            user_input.Primary_Input.boundary_condition,
+            user_input.Solver_Input.riemanntype,
+            user_input.Secondary_Input.gamma
+        )
 
         # This is where I need to employ Strang Splitting. I need to incorporate a strategy to do this along with
         # Lie Splitting. This should be a choice for the user as well. 
         F.density_flux .= U.momentum_centers
         F.momentum_flux .= U.momentum_centers.^2 ./ U.density_centers + (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)
         F.total_energy_flux .= (U.total_energy_centers .+ (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)) .* (U.momentum_centers ./ U.density_centers)
+        apply_boundary_conditions(boundary_condition, U, dispatch_grid.coord1.zones, ghost_zones)
         
         if user_input.Solver_Input.split_choice == :Strang
             dt = dt * 2
@@ -127,7 +166,24 @@ function Codex_Trials(user_input::UserInput)
             F.density_flux .= U.momentum_centers
             F.momentum_flux .= U.momentum_centers.^2 ./ U.density_centers + (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)
             F.total_energy_flux .= (U.total_energy_centers .+ (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)) .* (U.momentum_centers ./ U.density_centers)
-            HYDRO_Step!(W, U, F, dt, _grid, user_input)
+            HYDRO_Step!(W, U, F, dt,
+                _grid.coord1.ghost_zones,
+                _grid.coord1.total_zones,
+                _grid.coord1.spacing,
+                _grid.coord1.zones,
+                _grid.coord1.all_centers,
+                user_input.Primary_Input.mode,
+                user_input.Primary_Input.features,
+                user_input.Solver_Input.cfl,
+                user_input.Primary_Input.solver,
+                user_input.Solver_Input.reconstruction,
+                user_input.Solver_Input.limiter,
+                user_input.Solver_Input.flattening,
+                user_input.Solver_Input.steepening,
+                user_input.Primary_Input.boundary_condition,
+                user_input.Solver_Input.riemanntype,
+                user_input.Secondary_Input.gamma
+            )
             dt = dt * 2
         end
 

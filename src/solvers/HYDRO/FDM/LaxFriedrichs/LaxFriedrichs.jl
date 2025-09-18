@@ -9,7 +9,7 @@ function LaxFriedrichs_Step!(W::PrimitiveVariables, U::ConservativeVariables, F:
     # Store old state for increment norms
     U_old = deepcopy(U)
     # Calculate fluxes
-    CalculateFlux!(W, U, F)
+    #CalculateFlux!(W, U, F)
     if :Debug ∉ features
         if :Verbose ∈ features
             

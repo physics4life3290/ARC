@@ -7,7 +7,8 @@ function Dispatch_LaxFriedrichs_I(
     ρ::Vector{Float64},
     p::Vector{Float64},
     _grid::Vector{Float64};
-    u::Union{Vector{Float64}, Nothing}=nothing
+    u::Union{Vector{Float64}, Nothing}=nothing, 
+    boundary_condition::Symbol=:None
 )
         N = length(ρ)
     spacing = _grid[2] - _grid[1]
@@ -17,7 +18,6 @@ function Dispatch_LaxFriedrichs_I(
     cfl = 0.5
     ghost_zones = 3
     zones = N - 2*ghost_zones
-    boundary_condition = :None
 
     @assert length(p) == N "Pressure array must match density array length"
 
@@ -40,6 +40,10 @@ function Dispatch_LaxFriedrichs_I(
     
     if operator_splitting == :Strang
         dt = dt/2
+    end
+
+    if boundary_condition != :None
+        apply_boundary_conditions(boundary_condition, U, N, ghost_zones)
     end
 
     # Call solver
