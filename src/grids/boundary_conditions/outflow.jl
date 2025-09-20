@@ -4,19 +4,23 @@
 
 
 function apply_outflow_boundaries!(U::ConservativeVariables, ng::Int, nx::Int)
-    total = nx + 2ng
-
-    # Left boundary: copy innermost left values into ghost zones
-    for i in 1:ng
-        U.density_centers[ng - i + 1]        = U.density_centers[ng + 1]
-        U.momentum_centers[ng - i + 1]       = U.momentum_centers[ng + 1]
-        U.total_energy_centers[ng - i + 1]   = U.total_energy_centers[ng + 1]
+    # Left ghost zones: copy innermost left value
+    left_val_idx = ng + 1
+    @inbounds @simd for i in 1:ng
+        dest = ng - i + 1
+        U.density_centers[dest]      = U.density_centers[left_val_idx]
+        U.momentum_centers[dest]     = U.momentum_centers[left_val_idx]
+        U.total_energy_centers[dest] = U.total_energy_centers[left_val_idx]
     end
 
-    # Right boundary: copy innermost right values into ghost zones
-    for i in 1:ng
-        U.density_centers[nx + ng + i]       = U.density_centers[nx + ng]
-        U.momentum_centers[nx + ng + i]      = U.momentum_centers[nx + ng]
-        U.total_energy_centers[nx + ng + i]  = U.total_energy_centers[nx + ng]
+    # Right ghost zones: copy innermost right value
+    right_val_idx = nx + ng
+    @inbounds @simd for i in 1:ng
+        dest = nx + ng + i
+        U.density_centers[dest]      = U.density_centers[right_val_idx]
+        U.momentum_centers[dest]     = U.momentum_centers[right_val_idx]
+        U.total_energy_centers[dest] = U.total_energy_centers[right_val_idx]
     end
+
+    return nothing
 end

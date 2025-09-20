@@ -4,28 +4,39 @@
 
 
 function HYDRO_Step!(
-        W, U, F, dt,
-        ghost_zones, total_zones, spacing, zones, all_centers,
-        mode, features, cfl, solver,
-        reconstruction, limiter, flattening, steepening,
-        boundary_condition, riemanntype, gamma
+    W, U, F, dt,
+    ghost_zones, total_zones, spacing, zones, all_centers,
+    mode, features, cfl, solver,
+    reconstruction, limiter, flattening, steepening,
+    boundary_condition, riemanntype, gamma
+)
+    # Pre-define a mapping of solver symbols to functions
+    solver_map = Dict(
+        :FTCS => FTCS_Step!,
+        :LaxFriedrichs => LaxFriedrichs_Step!,
+        :Richtmyer => RichtmyerStep!,
+        :GodunovScheme => GodunovStep!
     )
-    if solver == :FTCS
-        FTCS_Step!(W, U, F, dt, ghost_zones, total_zones, spacing, mode, features, cfl)
-    elseif solver == :LaxFriedrichs
-        LaxFriedrichs_Step!(W, U, F, dt, ghost_zones, total_zones, spacing, mode, features, cfl)
-    elseif solver == :Richtmyer
-        RichtmyerStep!(W, U, F, _grid, user_input, dt, ghost_zones, total_zones, spacing, gamma, mode, features, cfl)
-    elseif solver == :GodunovScheme
-        GodunovStep!(W, U, F, reconstruction, limiter, flattening, steepening,
-                     boundary_condition, riemanntype, gamma,
-                     spacing, dt, cfl, mode, features,
-                     total_zones, zones, ghost_zones, all_centers)
-    else
-        println("Defaulting to Lax until Scheme requested is supported...")
-        LaxFriedrichs_Step!(W, U, F, dt, ghost_zones, total_zones, spacing, mode, features, cfl)
+
+    # Fetch the solver function; default to LaxFriedrichs
+    solver_func = get(solver_map, solver, LaxFriedrichs_Step!)
+
+    # Call the correct solver
+    if solver === :FTCS
+        solver_func(W, U, F, dt, ghost_zones, total_zones, spacing, mode, features, cfl)
+    elseif solver === :LaxFriedrichs
+        solver_func(W, U, F, dt, ghost_zones, total_zones, spacing, mode, features, cfl)
+    elseif solver === :Richtmyer
+        solver_func(W, U, F, _grid, user_input, dt, ghost_zones, total_zones, spacing,
+                    gamma, mode, features, cfl)
+    elseif solver === :GodunovScheme
+        solver_func(W, U, F, reconstruction, limiter, flattening, steepening,
+                    boundary_condition, riemanntype, gamma,
+                    spacing, dt, cfl, mode, features,
+                    total_zones, zones, ghost_zones, all_centers)
     end
 end
+
 
 function Codex_Trials(user_input::UserInput)
 
@@ -135,7 +146,7 @@ function Codex_Trials(user_input::UserInput)
         F.density_flux .= U.momentum_centers
         F.momentum_flux .= U.momentum_centers.^2 ./ U.density_centers + (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)
         F.total_energy_flux .= (U.total_energy_centers .+ (user_input.Secondary_Input.gamma - 1) .* (U.total_energy_centers .- 0.5 .* U.momentum_centers .^ 2 ./ U.density_centers)) .* (U.momentum_centers ./ U.density_centers)
-        apply_boundary_conditions(boundary_condition, U, dispatch_grid.coord1.zones, ghost_zones)
+        apply_boundary_conditions(user_input.Primary_Input.boundary_condition, U, _grid.coord1.zones, user_input.Grid_Input.ghost_zones)
         
         if user_input.Solver_Input.split_choice == :Strang
             dt = dt * 2

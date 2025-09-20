@@ -3,18 +3,25 @@
 
 
 
-struct CartesianGrid1D
-    coord1::UniformAxis
-    bounds::Tuple{Float64, Float64}
-    ghost_bounds::Tuple{Float64, Float64}
+struct CartesianGrid1D{T<:AbstractFloat}
+    coord1::UniformAxis   # stays concrete
+    bounds::Tuple{T,T}
+    ghost_bounds::Tuple{T,T}
     units::String
 end
 
-
-function Construct1DCartesian(domain_length::Float64, zones::Int, ghost_zones::Int, grid_center::Float64, units::String = "cm")
+@inline function Construct1DCartesian(domain_length::T, zones::Int, ghost_zones::Int,
+                                      grid_center::T, units::String = "cm") where {T<:AbstractFloat}
     coord1 = ConstructUniformAxis(domain_length, zones, ghost_zones, grid_center, :cartesian)
-    bounds = (-domain_length/2 + grid_center, domain_length/2 + grid_center)
-    ghost_bounds = (-domain_length/2 + grid_center - ghost_zones * coord1.spacing,
-                    domain_length/2 + grid_center + ghost_zones * coord1.spacing)
-    return CartesianGrid1D(coord1, bounds, ghost_bounds, units)
+
+    half    = domain_length / 2
+    lo      = grid_center - half
+    hi      = grid_center + half
+    spacing = coord1.spacing
+
+    bounds       = (lo, hi)
+    ghost_bounds = (lo - ghost_zones * spacing,
+                    hi + ghost_zones * spacing)
+
+    return CartesianGrid1D{T}(coord1, bounds, ghost_bounds, units)
 end

@@ -4,19 +4,25 @@
 
 
 function apply_periodic_boundaries!(U::ConservativeVariables, ng::Int, nx::Int)
-    total = nx + 2ng
+    total_centers = nx + 2ng
 
-    # Fill left ghost zones (1:ng) with data from right physical zone (nx)
-    for i in 1:ng
-        U.density_centers[ng - i + 1]        = U.density_centers[nx + ng - i + 1]
-        U.momentum_centers[ng - i + 1]       = U.momentum_centers[nx + ng - i + 1]
-        U.total_energy_centers[ng - i + 1]   = U.total_energy_centers[nx + ng - i + 1]
+    # Left ghost zones (1:ng) ← data from right physical zone
+    @inbounds @simd for i in 1:ng
+        src = nx + ng - i + 1
+        dest = ng - i + 1
+        U.density_centers[dest]      = U.density_centers[src]
+        U.momentum_centers[dest]     = U.momentum_centers[src]
+        U.total_energy_centers[dest] = U.total_energy_centers[src]
     end
 
-    # Fill right ghost zones (nx+ng+1 : total) with data from left physical zone (1:nx)
-    for i in 1:ng
-        U.density_centers[nx + ng + i]       = U.density_centers[ng + i]
-        U.momentum_centers[nx + ng + i]      = U.momentum_centers[ng + i]
-        U.total_energy_centers[nx + ng + i]  = U.total_energy_centers[ng + i]
+    # Right ghost zones (nx+ng+1 : total) ← data from left physical zone
+    @inbounds @simd for i in 1:ng
+        src = ng + i
+        dest = nx + ng + i
+        U.density_centers[dest]      = U.density_centers[src]
+        U.momentum_centers[dest]     = U.momentum_centers[src]
+        U.total_energy_centers[dest] = U.total_energy_centers[src]
     end
+
+    return nothing
 end

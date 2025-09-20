@@ -4,34 +4,49 @@
 
 
 function apply_neumann_boundaries!(U::ConservativeVariables, ng::Int, nx::Int)
-    total = nx + 2ng
+    total_centers = nx + 2ng
 
-    # Left boundary
-    for i in 1:ng
-        U.density_centers[ng - i + 1]      = U.density_centers[ng + 1]
-        U.momentum_centers[ng - i + 1]     = U.momentum_centers[ng + 1]
-        U.total_energy_centers[ng - i + 1] = U.total_energy_centers[ng + 1]
+    # Left boundary (centers)
+    left_val_idx = ng + 1
+    @inbounds @simd for i in 1:ng
+        dest = ng - i + 1
+        U.density_centers[dest]      = U.density_centers[left_val_idx]
+        U.momentum_centers[dest]     = U.momentum_centers[left_val_idx]
+        U.total_energy_centers[dest] = U.total_energy_centers[left_val_idx]
     end
 
-    # Right boundary
-    for i in 1:ng
-        U.density_centers[total - ng + i]      = U.density_centers[total - ng]
-        U.momentum_centers[total - ng + i]     = U.momentum_centers[total - ng]
-        U.total_energy_centers[total - ng + i] = U.total_energy_centers[total - ng]
+    # Right boundary (centers)
+    right_val_idx = nx + ng
+    @inbounds @simd for i in 1:ng
+        dest = total_centers - ng + i
+        U.density_centers[dest]      = U.density_centers[right_val_idx]
+        U.momentum_centers[dest]     = U.momentum_centers[right_val_idx]
+        U.total_energy_centers[dest] = U.total_energy_centers[right_val_idx]
     end
 
+    # Faces (if they exist)
     if U.density_faces !== nothing
-        total = length(U.density_faces)
-
-        for i in 1:ng
-            U.density_faces[ng - i + 1]      = U.density_faces[ng + 1]
-            U.momentum_faces[ng - i + 1]     = U.momentum_faces[ng + 1]
-            U.total_energy_faces[ng - i + 1] = U.total_energy_faces[ng + 1]
+        total_faces = length(U.density_faces)
+        
+        left_face_idx = ng + 1
+        right_face_idx = total_faces - ng
+        
+        # Left boundary (faces)
+        @inbounds @simd for i in 1:ng
+            dest = ng - i + 1
+            U.density_faces[dest]      = U.density_faces[left_face_idx]
+            U.momentum_faces[dest]     = U.momentum_faces[left_face_idx]
+            U.total_energy_faces[dest] = U.total_energy_faces[left_face_idx]
         end
-        for i in 1:ng
-            U.density_faces[total - ng + i]      = U.density_faces[total - ng]
-            U.momentum_faces[total - ng + i]     = U.momentum_faces[total - ng]
-            U.total_energy_faces[total - ng + i] = U.total_energy_faces[total - ng]
+
+        # Right boundary (faces)
+        @inbounds @simd for i in 1:ng
+            dest = total_faces - ng + i
+            U.density_faces[dest]      = U.density_faces[right_face_idx]
+            U.momentum_faces[dest]     = U.momentum_faces[right_face_idx]
+            U.total_energy_faces[dest] = U.total_energy_faces[right_face_idx]
         end
     end
+
+    return nothing
 end

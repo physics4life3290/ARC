@@ -13,6 +13,9 @@ function apply_boundary_conditions(user_input, U, _grid)
     end
 end
 =#
+
+
+#=
 function apply_boundary_conditions(boundary_condition::Symbol, U, zones::Int, ghost_zones::Int)
     if boundary_condition == :Reflecting
         apply_reflecting_boundaries!(U, ghost_zones, zones)
@@ -24,3 +27,22 @@ function apply_boundary_conditions(boundary_condition::Symbol, U, zones::Int, gh
         println("No boundary conditions...")
     end
 end
+=#
+# Create a constant lookup table for boundary functions
+BOUNDARY_FUNCS = Dict(
+    :Reflecting => apply_reflecting_boundaries!,
+    :Periodic   => apply_periodic_boundaries!,
+    :Outflow    => apply_outflow_boundaries!
+)
+
+# Main function
+function apply_boundary_conditions(boundary_condition::Symbol, U, zones::Int, ghost_zones::Int)
+    f = get(BOUNDARY_FUNCS, boundary_condition, nothing)
+    if f === nothing
+        return  # do nothing for unknown BC
+    end
+    f(U, ghost_zones, zones)
+end
+
+
+

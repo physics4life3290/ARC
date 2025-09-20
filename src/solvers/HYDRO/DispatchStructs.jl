@@ -6,6 +6,7 @@
 # Shared base state for all levels
 struct BaseState{T<:AbstractVector}
     ρ::T
+    u::T
     p::T
     γ::Float64
     grid_points::T
