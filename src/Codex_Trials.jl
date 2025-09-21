@@ -53,12 +53,19 @@ function Codex_Trials(user_input::UserInput)
     _grid = nothing
     if user_input.Primary_Input.dimension == 1
         if user_input.Primary_Input.coordinate_system == :Cartesian
-            _grid = Construct1DCartesian(user_input.Grid_Input.domain, user_input.Grid_Input.zones, user_input.Grid_Input.ghost_zones, user_input.Grid_Input.grid_center, "cm")
+            _grid = Construct1DCartesian(user_input.Grid_Input.domain[1], user_input.Grid_Input.zones[1], user_input.Grid_Input.ghost_zones, user_input.Grid_Input.grid_center[1], "cm")
         elseif user_input.Primary_Input.coordinate_system == :Spherical || user_input.Primary_Input.coordinate_system == :Cylindrical
-            _grid = Construct1DSpherical(user_input.Grid_Input.domain, user_input.Grid_Input.zones, user_input.Grid_Input.ghost_zones, user_input.Grid_Input.grid_center, "cm")
+            _grid = Construct1DSpherical(user_input.Grid_Input.domain[1], user_input.Grid_Input.zones[1], user_input.Grid_Input.ghost_zones, user_input.Grid_Input.grid_center[1], "cm")
+        end
+    elseif user_input.Primary_Input.dimension == 2
+        if user_input.Primary_Input.coordinate_system == :Cartesian
+            _grid = Construct2DCartesian(user_input.Grid_Input.domain[1], user_input.Grid_Input.domain[2], user_input.Grid_Input.zones[1], user_input.Grid_Input.zones[2], user_input.Grid_Input.ghost_zones, user_input.Grid_Input.grid_center, "cm")
+        elseif user_input.Primary_Input.coordinate_system == :Spherical || user_input.Primary_Input.coordinate_system == :Cylindrical
+            #_grid = Construct2DSpherical()
         end
     end
-    
+    println(_grid)
+    exit()
     println("The grid has been successfully created!")
     
     if user_input.Primary_Input.problem == :ShockTube

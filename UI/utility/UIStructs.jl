@@ -18,15 +18,16 @@ end
 # We can use a constructor that takes in primaryinput
 # this will build a multiD grid each with fully 
 # customizable fields.
-struct GridInput
-    domain::Float64
-    grid_center::Float64
-    zones::Int
+struct GridInput{N}
+    domain::NTuple{N,Float64}
+    grid_center::NTuple{N,Float64}
+    zones::NTuple{N,Int}
     ghost_zones::Int
-    total_zones::Int
-    coord_min::Float64
-    coord_max::Float64
+    total_zones::NTuple{N,Int}
+    coord_min::NTuple{N,Float64}
+    coord_max::NTuple{N,Float64}
 end
+
 
 struct SolverInput
     cfl::Float64

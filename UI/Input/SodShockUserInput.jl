@@ -62,7 +62,7 @@ function _1DShockTubeUserInput(grid_input)
     println("Please input how many states are in the box...")
     num_of_states = prompt_num_states()
     
-    wall_positions = get_wall_positions(num_of_states, grid_input.coord_min, grid_input.coord_max)
+    wall_positions = get_wall_positions(num_of_states, grid_input.coord_min[1], grid_input.coord_max[1])
 
     states = get_ShockTube_states_structured(num_of_states)
 
