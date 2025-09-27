@@ -61,7 +61,7 @@ function Codex_Trials(user_input::UserInput)
         if user_input.Primary_Input.coordinate_system == :Cartesian
             _grid = Construct2DCartesian(user_input.Grid_Input.domain[1], user_input.Grid_Input.domain[2], user_input.Grid_Input.zones[1], user_input.Grid_Input.zones[2], user_input.Grid_Input.ghost_zones, user_input.Grid_Input.grid_center, "cm")
         elseif user_input.Primary_Input.coordinate_system == :Spherical || user_input.Primary_Input.coordinate_system == :Cylindrical
-            #_grid = Construct2DSpherical()
+            _grid = Construct2DSpherical(user_input.Grid_Input.domain[1], user_input.Grid_Input.zones[1], user_input.Grid_Input.zones[2], user_input.Grid_Input.ghost_zones, user_input.Grid_input.grid_center)
         end
     end
     println(_grid)

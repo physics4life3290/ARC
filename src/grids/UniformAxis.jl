@@ -3,52 +3,108 @@
 
 
 
-struct UniformAxis
-    centers::Vector{Float64}
-    interfaces::Vector{Float64}
-    all_centers::Vector{Float64}
-    all_interfaces::Vector{Float64}
-    spacing::Float64
-    total_zones::Int
-    zones::Int
-    ghost_zones::Int
-    coord_system::Symbol
+struct UniformAxis{T}
+    PhysicalCenters::Vector{T}
+    PhysicalInterfaces::Vector{T}
+    SimulationCenters::Vector{T}
+    SimulationInterfaces::Vector{T}
+    spacing::T
+    AxisCenter::T
 end
 
-function ConstructUniformAxis(domain_length::Float64, zones::Int, ghost_zones::Int, grid_center::Float64, coord_system::Symbol)
+function ConstructUniformAxis(domain::T, zones::Int, ghost_zones::Int, grid_center::T, axis_type::Symbol) where T
+    
+    spacing = domain / zones
     total_zones = zones + 2 * ghost_zones
-    spacing = domain_length / zones
 
-    if coord_system == :cartesian
-        centers = LinRange(-domain_length/2 + grid_center, domain_length/2 + grid_center, zones)
-        interfaces = LinRange(-domain_length/2 + grid_center - spacing/2, domain_length/2 + grid_center + spacing/2, zones + 1)
+    if axis_type == :linear
+        
+        half_domain = domain / 2
+        min_physical = -half_domain + grid_center
+        max_physical = half_domain + grid_center
 
-        all_centers = LinRange(-domain_length/2 + grid_center - ghost_zones * spacing,
-                               domain_length/2 + grid_center + ghost_zones * spacing,
-                               total_zones)
+        # Physical centers and interfaces
+        physical_centers = collect(range(min_physical, max_physical, length=zones))
+        physical_interfaces = collect(range(min_physical + spacing/2, max_physical - spacing/2, length=zones-1))
 
-        all_interfaces = LinRange(-domain_length/2 + grid_center - (ghost_zones + 0.5) * spacing,
-                                  domain_length/2 + grid_center + (ghost_zones + 0.5) * spacing,
-                                  total_zones + 1)
+        # Ghost-extended simulation bounds
+        min_ghost_bound = first(physical_centers) - spacing * ghost_zones
+        max_ghost_bound = last(physical_centers) + spacing * ghost_zones
 
-    elseif coord_system == :spherical || coord_system == :cylindrical
+        simulation_centers = collect(range(min_ghost_bound, max_ghost_bound, length=total_zones))
+        simulation_interfaces = collect(range(min_ghost_bound + spacing/2, max_ghost_bound - spacing/2, length=total_zones-1))
 
-        r_min = 1E-12
-        r_max = domain_length
+        return UniformAxis{T}(physical_centers, physical_interfaces, simulation_centers, simulation_interfaces, spacing, grid_center)
+    
+    elseif axis_type == :radial
 
-        centers = LinRange(r_min + grid_center, r_max + grid_center, zones)
-        interfaces = LinRange(r_min + grid_center - spacing/2, r_max + grid_center + spacing/2, zones + 1)
+        min_physical = grid_center
+        max_physical = min_physical + domain
+        half_domain = (max_physical - min_physical) / 2
 
-        all_centers = LinRange(r_min + grid_center - ghost_zones * spacing,
-                               r_max + grid_center + ghost_zones * spacing,
-                               total_zones)
+        physical_centers = collect(range(min_physical, max_physical, length=zones))
+        physical_interfaces = collect(range(min_physical+spacing/2, max_physical-spacing/2, length=zones-1))
 
-        all_interfaces = LinRange(r_min + grid_center - (ghost_zones + 0.5) * spacing,
-                                  r_max + grid_center + (ghost_zones + 0.5) * spacing,
-                                  total_zones + 1)
-    else
-        error("Unsupported coordinate system: $coord_system")
+        total_zones = zones + 2 * ghost_zones
+        min_ghost_bound = first(physical_centers) - spacing * ghost_zones
+        max_ghost_bound = last(physical_centers) + spacing * ghost_zones
+
+        simulation_centers = collect(range(min_ghost_bound, max_ghost_bound, length=total_zones))
+        simulation_interfaces = collect(range(min_ghost_bound+spacing/2, max_ghost_bound-spacing/2, length=total_zones-1))
+
+        return UniformAxis{T}(physical_centers, physical_interfaces, simulation_centers, simulation_interfaces, spacing, grid_center)
+
+    elseif axis_type == :angular
+
+        min_physical = 0.0
+        max_physical = 3.141592653589793
+        half_domain = (max_physical - min_physical) / 2
+
+        physical_centers = collect(range(min_physical, max_physical, length=zones))
+        physical_interfaces = collect(range(min_physical+spacing/2, max_physical-spacing/2, length=zones-1))
+
+        min_ghost_bound = first(physical_centers) - spacing * ghost_zones
+        max_ghost_bound = last(physical_centers) + spacing * ghost_zones
+
+        total_zones = zones + 2 * ghost_zones
+
+        simulation_centers = collect(range(min_ghost_bound, max_ghost_bound, length=total_zones))
+        simulation_interfaces = collect(range(min_ghost_bound+spacing/2, max_ghost_bound-spacing/2, length=total_zones-1))
+        return UniformAxis{T}(physical_centers, physical_interfaces, simulation_centers, simulation_interfaces, spacing, grid_center)
     end
 
-    return UniformAxis(centers, interfaces, all_centers, all_interfaces, spacing, total_zones, zones, ghost_zones, coord_system)
 end
+
+
+#=
+zones = 10
+ghost_zones = 3
+domain = 2.0
+name = "x-Axis"
+grid_center = 0.0
+
+# Grid takes in domain::NTuple(N, T), zones::NTuple{N,T}, ghost_zones, grid_center::NTuple{N,T}, names::NTuple{N,String}
+
+coord = ConstructUniformAxis(domain, zones, ghost_zones, grid_center, name)
+
+println(coord.PhysicalCenters)
+println(coord.PhysicalInterfaces)
+println(coord.SimulationCenters)
+println(coord.SimulationInterfaces)
+println(coord.spacing)
+println(coord.AxisCenter)
+println(coord.name)
+
+struct Grid{N, T}
+    axes::NTuple{N, UniformAxis}
+    domain::NTuple{N, T}
+    bounds::NTuple{N, Tuple{T, T}}
+    ghost_bounds::NTuple{N, Tuple{T, T}}
+    zones::NTuple{N, Int}
+    ghost_zones::Int
+    total_zones::Int
+    origin::NTuple{N, T}
+    dimension::N
+    coordinate_system::Symbol
+end
+=#
