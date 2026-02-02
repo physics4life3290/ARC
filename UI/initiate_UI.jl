@@ -13,7 +13,7 @@ end
 
 function initiate_UI()
 
-   run_introduction()
+    run_introduction()
 
     primary_input = collect_primary_input()
     

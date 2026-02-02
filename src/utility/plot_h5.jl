@@ -29,7 +29,7 @@ function plot_snapshot(h5_filename::String, snapshot::Int, variable::String)
 end
 using HDF5, Plots
 
-function animate_snapshots(h5_filename::String, variables::Vector{String}; savefile::String="animation.gif")
+function animate_snapshots(h5_filename::String, variables::Vector{String}; savefile::String="animation.mp4")
     h5open(h5_filename, "r") do file
         # Find all snapshot groups
         snapshots = sort([parse(Int, split(name, "_")[end]) 
@@ -38,7 +38,7 @@ function animate_snapshots(h5_filename::String, variables::Vector{String}; savef
         # Create animation
         anim = @animate for snapshot in snapshots
             @inbounds begin
-                println("Animating snapshot $snapshot out of $(length(snapshots)*10)")
+                println("Animating snapshot $snapshot out of $(length(snapshots))")
                 grp = file["step_$snapshot"]
 
                 # read x once per snapshot
@@ -67,7 +67,7 @@ function animate_snapshots(h5_filename::String, variables::Vector{String}; savef
             end
         end
 
-        # Save the animation
-        gif(anim, savefile, fps=30)
+        # Save the animation as MP4
+        mp4(anim, savefile, fps=30)
     end
 end

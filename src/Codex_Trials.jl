@@ -192,7 +192,7 @@ function Codex_Trials(user_input::UserInput)
 
     evolution_bench_f = time()
     if :Animate ∈ user_input.Primary_Input.features
-        animate_snapshots(h5_filename, ["W/density", "W/velocity", "W/pressure", "W/int_energy"], savefile=user_input.Primary_Input.filename * ".gif")
+        animate_snapshots(h5_filename, ["W/density", "W/velocity", "W/pressure", "W/int_energy"], savefile=user_input.Primary_Input.filename * ".mp4")
     end
     println("The time it took to evolve the whole problem was: $(evolution_bench_f - evolution_bench_i) seconds...")
     dens_bench, vel_bench, press_bench = zeros(length(W.density_centers)), zeros(length(W.velocity_centers)), zeros(length(W.pressure_centers)) 
