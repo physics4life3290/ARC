@@ -3,38 +3,37 @@
 
 
 
-function apply_reflecting_boundaries!(U::ConservativeVariables, ng::Int, nx::Int)
-    total = nx + 2ng
-
+function apply_reflecting_boundaries!(U::ConservativeVariables, ng, nx)
+    total = nx + 2ng 
     # Left boundary
     for i in 1:ng
-        U.density_centers[ng - i + 1]        = U.density_centers[ng + i]
-        U.momentum_centers[ng - i + 1]       = -U.momentum_centers[ng + i]
-        U.total_energy_centers[ng - i + 1]   = U.total_energy_centers[ng + i]
+        U.centers.density[ng - i + 1]        = U.centers.density[ng + i]
+        U.centers.momentum[1][ng - i + 1]       = -U.centers.momentum[1][ng + i]
+        U.centers.total_energy[ng - i + 1]   = U.centers.total_energy[ng + i]
     end
 
     # Right boundary
     for i in 1:ng
-        U.density_centers[total - ng + i]       = U.density_centers[total - ng - i + 1]
-        U.momentum_centers[total - ng + i]      = -U.momentum_centers[total - ng - i + 1]
-        U.total_energy_centers[total - ng + i]  = U.total_energy_centers[total - ng - i + 1]
+        U.centers.density[total - ng + i]       = U.centers.density[total - ng - i + 1]
+        U.centers.momentum[1][total - ng + i]      = -U.centers.momentum[1][total - ng - i + 1]
+        U.centers.total_energy[total - ng + i]  = U.centers.total_energy[total - ng - i + 1]
     end
 
-    if U.density_faces !== nothing 
-        total = length(U.density_faces)
+    if U.faces !== nothing 
+        total = length(U.faces.density)
 
         # Left boundary
         for i in 1:ng
-            U.density_faces[ng - i + 1]        = U.density_faces[ng + i]
-            U.momentum_faces[ng - i + 1]       = -U.momentum_faces[ng + i]
-            U.total_energy_faces[ng - i + 1]   = U.total_energy_faces[ng + i]
+            U.faces.density[ng - i + 1]        = U.faces.density[ng + i]
+            U.faces.momentum[1][ng - i + 1]       = -U.faces.momentum[1][ng + i]
+            U.faces.total_energy[ng - i + 1]   = U.faces.total_energy[ng + i]
         end
 
         # Right boundary
         for i in 1:ng
-            U.density_faces[total - ng + i]       = U.density_faces[total - ng - i + 1]
-            U.momentum_faces[total - ng + i]      = -U.momentum_faces[total - ng - i + 1]
-            U.total_energy_faces[total - ng + i]  = U.total_energy_faces[total - ng - i + 1]
+            U.faces.density[total - ng + i]       = U.faces.density[total - ng - i + 1]
+            U.faces.momentum[1][total - ng + i]      = -U.faces.momentum[1][total - ng - i + 1]
+            U.faces.total_energy[total - ng + i]  = U.faces.total_energy[total - ng - i + 1]
         end
     end
 

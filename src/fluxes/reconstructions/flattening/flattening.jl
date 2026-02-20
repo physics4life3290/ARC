@@ -110,57 +110,30 @@ function shock_flattener(ρ, u, p, i, dx; tau=0.33, C=0.5)
     return φ
 end
 
-
-# This method applies flattener like FLASH paper 
-
-function flatten_shocks!(ρ::Vector{Float64}, P::Vector{Float64}, u::Vector{Float64},
-                         varL::Vector{Float64}, varR::Vector{Float64})
-    N = length(P)
-    Fi = zeros(N)
-
-    for i in 3:N-2
-        # --------------------------------
-        # 1. Shock steepness parameter
-        # --------------------------------
-        Sp = (P[i+1] - P[i-1]) / (P[i+2] - P[i-2] + 1e-14) # avoid div 0
-
-        # dimensionless number
-        Fbar = max(0.0, min(1.0, 10*(Sp - 0.75)))
-
-        # --------------------------------
-        # 2. Criteria checks
-        # --------------------------------
-        # relative pressure jump
-        if abs(P[i+1] - P[i-1]) / min(P[i+1], P[i-1]) < 1/3
-            Fbar = 0.0
-        end
-
-        # compression condition
-        if (u[i+1] - u[i-1]) > 0
-            Fbar = 0.0
-        end
-
-        # store
-        Fi[i] = Fbar
+# --- Flattening coefficient ---
+function compute_flattening_coeff!(
+    Fi::Vector{Float64},
+    P::Vector{Float64},
+    u::Vector{Float64};
+    ϵ = 1e-12
+)
+    n = length(P)
+    fill!(Fi, 0.0)
+    @inbounds for i in 3:n-2
+        num = abs(P[i+1] - P[i-1])
+        den = abs(P[i+2] - P[i-2]) + ϵ
+        ratio = num / den
+        fbar = clamp(4.0*(ratio-0.5),0.0,1.0)
+        Pmin = max(min(P[i+1],P[i-1]),ϵ)
+        pressure_jump = (num/Pmin) > 0.33
+        compressive = (u[i+1]-u[i-1]) < 0.0
+        Fi[i] = (pressure_jump && compressive) ? fbar : 0.0
     end
 
-    # --------------------------------
-    # 3. Choose neighboring max values
-    # --------------------------------
-    for i in 3:N-2
-        if (P[i+1] - P[i-1]) < 0
-            Fi[i] = max(Fi[i], Fi[i+1])
-        else
-            Fi[i] = max(Fi[i], Fi[i-1])
-        end
-    end
-
-    # --------------------------------
-    # 4. Apply flattening to interface states
-    # --------------------------------
-    for i in 3:N-2
-        varL[i] = Fi[i]*ρ[i] + (1 - Fi[i])*varL[i]
-        varR[i] = Fi[i]*ρ[i] + (1 - Fi[i])*varR[i]
+    # Widening
+    Fi_tmp = copy(Fi)
+    @inbounds for i in 3:n-2
+        Fi[i] = P[i+1] < P[i-1] ? max(Fi_tmp[i], Fi_tmp[i+1]) : max(Fi_tmp[i], Fi_tmp[i-1])
     end
 
     return Fi

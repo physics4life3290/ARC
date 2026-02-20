@@ -23,6 +23,7 @@ end
 function Codex_Trials(user_input::UserInput)
 
     init_bench_i, init_bench_f, prim_var_construct_i, prim_var_construct_f, evolution_bench_i, evolution_bench_f = nothing, nothing, nothing, nothing, nothing, nothing
+    
     if :Benchmark ∈ user_input.Primary_Input.features
         init_bench_i, init_bench_f, prim_var_construct_i, prim_var_construct_f, evolution_bench_i, evolution_bench_f = Benchmark_Codex_Trials(user_input)
     end
@@ -33,6 +34,8 @@ function Codex_Trials(user_input::UserInput)
     t = 0.0
     counter = 0
     _grid = nothing
+
+    
     if user_input.Primary_Input.dimension == 1
         if user_input.Primary_Input.coordinate_system == :Cartesian
             _grid = Construct1DCartesian(user_input.Grid_Input.domain, user_input.Grid_Input.zones, user_input.Grid_Input.ghost_zones, user_input.Grid_Input.grid_center, "cm")

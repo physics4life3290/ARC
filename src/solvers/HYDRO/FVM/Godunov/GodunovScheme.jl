@@ -1,319 +1,129 @@
+function GodunovStep!(
+    W, U, F,
+    reconstruction, limiter,
+    flattening, steepening,
+    boundary_condition, riemanntype,
+    γ, spacing, dt,
+    total_zones, zones, ghost_zones, grid_points,
+    mode
+)
 
+    # --- Reconstruction ---
+    if reconstruction != :Constant
+        if reconstruction == :Linear
+            slope_ρ = compute_slopes(W.centers.density, limiter)
+            slope_u = compute_slopes(W.centers.velocity[1], limiter)
+            slope_p = compute_slopes(W.centers.pressure, limiter)
+            ρL, ρR = linear_reconstruct(W.centers.density, slope_ρ)
+            uL, uR = linear_reconstruct(W.centers.velocity[1], slope_u)
+            pL, pR = linear_reconstruct(W.centers.pressure, slope_p)
 
+        elseif reconstruction == :Parabolic
+            ρL, ρR = parabolic_reconstruct(W.centers.density)
+            uL, uR = parabolic_reconstruct(W.centers.velocity[1])
+            pL, pR = parabolic_reconstruct(W.centers.pressure)
 
-
-
-function GodunovStep!(W, U, F, reconstruction, limiter, flattening, steepening, boundary_condition, riemanntype, γ, spacing, dt, cfl, mode, features, total_zones, zones, ghost_zones, grid_points)    
-
-    Godunov_Log = nothing
-
-    U_old = deepcopy(U)
-    if :Debug ∉ features
-        if :Verbose ∈ features
-            Godunov_Log = open("Godunov_Log.txt", "a")
-            write_solver_input(Godunov_Log, W, U_old, F)
+        elseif reconstruction == :Cubic
+            ρL, ρR = reconstruct_interfaces(W.centers.density, grid_points)
+            uL, uR = reconstruct_interfaces(W.centers.velocity[1], grid_points)
+            pL, pR = reconstruct_interfaces(W.centers.pressure, grid_points)
         end
 
-        if reconstruction != :Constant
+        if steepening
+            ρL, ρR = steepening_contact!(W.centers.density, W.centers.pressure, grid_points, γ, ρL, ρR)
+        end
 
-            # Reconstruct left and right states at interfaces
+        if flattening
+            flat_coeff = compute_flattening_coeff!(zeros(length(W.centers.density)), W.centers.pressure, W.centers.velocity[1])
             if reconstruction == :Linear
-
-                slope_ρ = compute_slopes(W.density_centers, limiter)
-                slope_u = compute_slopes(W.velocity_centers, limiter)
-                slope_p = compute_slopes(W.pressure_centers, limiter)
-                ρL, ρR = linear_reconstruct(W.density_centers, slope_ρ)
-                uL, uR = linear_reconstruct(W.velocity_centers, slope_u)
-                pL, pR = linear_reconstruct(W.pressure_centers, slope_p)
-
-            elseif reconstruction == :Parabolic
-
-                ρL, ρR = parabolic_reconstruct(W.density_centers)
-                uL, uR = parabolic_reconstruct(W.velocity_centers)
-                pL, pR = parabolic_reconstruct(W.pressure_centers)
-            
-            elseif reconstruction == :Cubic
-
-                ρL, ρR = reconstruct_interfaces(W.density_centers, grid_points)
-                uL, uR = reconstruct_interfaces(W.velocity_centers, grid_points)
-                pL, pR = reconstruct_interfaces(W.pressure_centers, grid_points)
-
-            end
-
-            if flattening == true
-                flat_coeff = flatten_shocks!(W.density_centers, W.pressure_centers, W.velocity_centers, ρL, ρR)
-                #flat_coeff = compute_flattening_coefficient(W.pressure_centers)
-                ρL, ρR = W.density_centers .+ flat_coeff .* (ρL .- W.density_centers), W.density_centers .+ flat_coeff .* (ρR .- W.density_centers)
-                flat_coeff = flatten_shocks!(W.density_centers, W.pressure_centers, W.velocity_centers, uL, uR)
-                uL, uR = W.velocity_centers .+ flat_coeff .* (uL .- W.velocity_centers), W.velocity_centers .+ flat_coeff .* (uR .- W.velocity_centers)
-                flat_coeff = flatten_shocks!(W.density_centers, W.pressure_centers, W.velocity_centers, pL, pR)
-                pL, pR = W.pressure_centers .+ flat_coeff .* (pL .- W.pressure_centers), W.pressure_centers .+ flat_coeff .* (pR .- W.pressure_centers)
-            end
-            
-            if steepening == true
-                steep_coeff = compute_steepening_coefficient(W.density_centers, W.pressure_centers)
-                for i in 2:total_zones
-                    δρ=ρR[i] - ρL[i]
-                    ρL[i] = W.density_centers[i] - ((1+steep_coeff[i])/2) * δρ
-                    ρR[i] = W.density_centers[i] + ((1+steep_coeff[i])/2) * δρ
+                @inbounds begin
+                    ρL[1:end-1] .= W.centers.density .+ flat_coeff .* (ρL[1:end-1] .- W.centers.density)
+                    ρR[1:end-1] .= W.centers.density .+ flat_coeff .* (ρR[1:end-1] .- W.centers.density)
+                    uL[1:end-1] .= W.centers.velocity[1] .+ flat_coeff .* (uL[1:end-1] .- W.centers.velocity[1])
+                    uR[1:end-1] .= W.centers.velocity[1] .+ flat_coeff .* (uR[1:end-1] .- W.centers.velocity[1])
+                    pL[1:end-1] .= W.centers.pressure .+ flat_coeff .* (pL[1:end-1] .- W.centers.pressure)
+                    pR[1:end-1] .= W.centers.pressure .+ flat_coeff .* (pR[1:end-1] .- W.centers.pressure)
                 end
-                #ρL, ρR = steepening_contact!(W.density_centers, W.pressure_centers, grid_points, γ, ρL, ρR)
+            else
+                @inbounds begin
+                    ρL .= W.centers.density .+ flat_coeff .* (ρL .- W.centers.density)
+                    ρR .= W.centers.density .+ flat_coeff .* (ρR .- W.centers.density)
+                    uL .= W.centers.velocity[1] .+ flat_coeff .* (uL .- W.centers.velocity[1])
+                    uR .= W.centers.velocity[1] .+ flat_coeff .* (uR .- W.centers.velocity[1])
+                    pL .= W.centers.pressure .+ flat_coeff .* (pL .- W.centers.pressure)
+                    pR .= W.centers.pressure .+ flat_coeff .* (pR .- W.centers.pressure)
+                end
             end
-
-            #if reconstruction == :Parabolic || reconstruction == :Cubic 
-            #    ρL, ρR = enforce_monotonicity!(W.density_centers, ρL, ρR)
-            #    uL, uR = enforce_monotonicity!(W.velocity_centers, uL, uR)
-            #    pL, pR = enforce_monotonicity!(W.pressure_centers, pL, pR)
-            #end
-        else
-            ρL, ρR = W.density_centers, W.density_centers
-            uL, uR = W.velocity_centers, W.velocity_centers
-            pL, pR = W.pressure_centers, W.pressure_centers
+    
         end
-
-        apply_boundary_conditions(boundary_condition, U, zones, ghost_zones)
-        
-        if mode == :Standard
-
-            for i in 2:total_zones
-                @inbounds begin
-                    if riemanntype == :HLL
-                        f1, f2, f3 = Riemann_HLL(ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], γ)
-                    elseif riemanntype == :HLLC
-                        f1, f2, f3 = Riemann_HLLC(ρR[i-1], uR[i-1], pR[i-1], ρL[i], uL[i], pL[i], γ)
-                    elseif riemanntype == :Exact
-                        pstar, ustar = solve_star_pressure(ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], γ)
-                        prims = sample_exact(0.0, ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], pstar, ustar, γ)
-                        f1 = prims[1] * prims[2]
-                        f2 = prims[1] * prims[2]^2 + prims[3]
-                        E = prims[3] / (γ - 1.0) + 0.5 * prims[1] * prims[2]^2
-                        f3 = prims[2] * (E + prims[3])
-                    end
-                    F.density_flux[i] = f1
-                    F.momentum_flux[i] = f2
-                    F.total_energy_flux[i] = f3
-                end
-            end
-
-            for i in 2:total_zones-1
-                @inbounds begin
-                    U.density_centers[i] -= dt/spacing * (F.density_flux[i+1] - F.density_flux[i])
-                    U.momentum_centers[i] -= dt/spacing * (F.momentum_flux[i+1] - F.momentum_flux[i])
-                    U.total_energy_centers[i] -= dt/spacing * (F.total_energy_flux[i+1] - F.total_energy_flux[i])
-
-                end
-            end
-
-        elseif mode == :Parallel
-            Threads.@threads for i in 2:total_zones
-                @inbounds begin
-                    if riemanntype == :HLL
-                        f1, f2, f3 = Riemann_HLL(ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], γ)
-                    elseif riemanntype == :HLLC
-                        f1, f2, f3 = Riemann_HLLC(ρR[i-1], uR[i-1], pR[i-1], ρL[i], uL[i], pL[i], γ)
-                    elseif riemanntype == :Exact
-                        pstar, ustar = solve_star_pressure(ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], γ)
-                        prims = sample_exact(0.0, ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], pstar, ustar, γ)
-                        f1 = prims[1] * prims[2]
-                        f2 = prims[1] * prims[2]^2 + prims[3]
-                        E = prims[3] / (γ - 1.0) + 0.5 * prims[1] * prims[2]^2
-                        f3 = prims[2] * (E + prims[3])
-                    end
-                    F.density_flux[i] = f1
-                    F.momentum_flux[i] = f2
-                    F.total_energy_flux[i] = f3
-                end
-            end
-
-            # Update conserved variables (interior cells)
-            Threads.@threads for i in 2:total_zones-1
-                @inbounds begin
-                    U.density_centers[i] -= dt/spacing * (F.density_flux[i+1] - F.density_flux[i])
-                    U.momentum_centers[i] -= dt/spacing * (F.momentum_flux[i+1] - F.momentum_flux[i])
-                    U.total_energy_centers[i] -= dt/spacing * (F.total_energy_flux[i+1] - F.total_energy_flux[i])
-
-                end
-            end
-
-        elseif mode == :GPU
-
-            @warn "GPU mode not yet implemented for Godunov Schemes... Release coming in v0.2... Defaulting to Parallel..."
-            GodunovStep!(W, U, F, reconstruction, limiter, flattening, steepening, boundary_condition, riemanntype, γ, spacing, dt, cfl, mode, features, total_zones, zones, ghost_zones, grid_points)    
-
-        elseif mode == :HPC
-
-            @warn "HPC mode not yet implemented for Lax Friedrichs... Release coming in v0.5... Defaulting to Parallel..."
-            GodunovStep!(W, U, F, reconstruction, limiter, flattening, steepening, boundary_condition, riemanntype, γ, spacing, dt, cfl, mode, features, total_zones, zones, ghost_zones, grid_points)    
-        end    
-
-        if :Verbose ∈ features
-            solver_diagnostics(U, U_old, F, cfl, spacing, dt; logfile=Godunov_Log)
-            write_solver_output(Godunov_Log, W, U, F)
-            close(Godunov_Log)
-        end
-    elseif :Debug ∈ features
-        GodunovStep_Debug!(W, U, F, reconstruction, limiter, flattening, steepening, boundary_condition, riemanntype, γ, spacing, dt, cfl, mode, features, total_zones, zones, ghost_zones)    
+    else
+        ρL, ρR = W.centers.density, W.centers.density
+        uL, uR = W.centers.velocity[1], W.centers.velocity[1]
+        pL, pR = W.centers.pressure, W.centers.pressure
     end
 
-end
+    # --- Boundary conditions ---
+    apply_boundary_conditions(boundary_condition, U, zones, ghost_zones)
 
-
-
-
-
-
-
-
-function GodunovStepIx!(W, U, F, reconstruction, limiter, flattening, steepening, boundary_condition, riemanntype, γ, spacing, dt, cfl, mode, features, total_zones, zones, ghost_zones, grid_points)    
-
-    Godunov_Log = nothing
-
-    U_old = deepcopy(U)
-    if :Debug ∉ features
-        if :Verbose ∈ features
-            Godunov_Log = open("Godunov_Log.txt", "a")
-            write_solver_input(Godunov_Log, W, U_old, F)
+    # --- Flux computation ---
+    if mode == :Standard
+        for i in 2:total_zones
+            @inbounds begin
+                f1 = f2 = f3 = 0.0
+                if riemanntype == :HLL
+                    f1, f2, f3 = Riemann_HLL(ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], γ)
+                elseif riemanntype == :HLLC
+                    f1, f2, f3 = Riemann_HLLC(ρR[i-1], uR[i-1], pR[i-1], ρL[i], uL[i], pL[i], γ)
+                elseif riemanntype == :Exact
+                    pstar, ustar = solve_star_pressure(ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], γ)
+                    prims = sample_exact(0.0, ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], pstar, ustar, γ)
+                    f1 = prims[1] * prims[2]
+                    f2 = prims[1] * prims[2]^2 + prims[3]
+                    E = prims[3]/(γ-1.0) + 0.5*prims[1]*prims[2]^2
+                    f3 = prims[2] * (E + prims[3])
+                end
+                F.density_flux[i] = f1
+                F.momentum_flux[1][i] = f2
+                F.total_energy_flux[i] = f3
+            end
         end
 
-        if reconstruction != :Constant
-
-            # Reconstruct left and right states at interfaces
-            if reconstruction == :Linear
-
-                slope_ρ = compute_slopes(W.density_centers, limiter)
-                slope_u = compute_slopes(W.velocity_centers, limiter)
-                slope_p = compute_slopes(W.pressure_centers, limiter)
-                ρL, ρR = linear_reconstruct(W.density_centers, slope_ρ)
-                uL, uR = linear_reconstruct(W.velocity_centers, slope_u)
-                pL, pR = linear_reconstruct(W.pressure_centers, slope_p)
-
-            elseif reconstruction == :Parabolic
-
-                ρL, ρR = parabolic_reconstruct(W.density_centers)
-                uL, uR = parabolic_reconstruct(W.velocity_centers)
-                pL, pR = parabolic_reconstruct(W.pressure_centers)
-            
-            elseif reconstruction == :Cubic
-
-                ρL, ρR = reconstruct_interfaces(W.density_centers, grid_points)
-                uL, uR = reconstruct_interfaces(W.velocity_centers, grid_points)
-                pL, pR = reconstruct_interfaces(W.pressure_centers, grid_points)
-
+        for i in 2:total_zones-1
+            @inbounds begin
+                U.centers.density[i] -= dt/spacing * (F.density_flux[i+1] - F.density_flux[i])
+                U.centers.momentum[1][i] -= dt/spacing * (F.momentum_flux[1][i+1] - F.momentum_flux[1][i])
+                U.centers.total_energy[i] -= dt/spacing * (F.total_energy_flux[i+1] - F.total_energy_flux[i])
             end
-
-            if flattening == true
-                flat_coeff = flatten_shocks!(W.density_centers, W.pressure_centers, W.velocity_centers, ρL, ρR)
-                #flat_coeff = compute_flattening_coefficient(W.pressure_centers)
-                ρL, ρR = W.density_centers .+ flat_coeff .* (ρL .- W.density_centers), W.density_centers .+ flat_coeff .* (ρR .- W.density_centers)
-                flat_coeff = flatten_shocks!(W.density_centers, W.pressure_centers, W.velocity_centers, uL, uR)
-                uL, uR = W.velocity_centers .+ flat_coeff .* (uL .- W.velocity_centers), W.velocity_centers .+ flat_coeff .* (uR .- W.velocity_centers)
-                flat_coeff = flatten_shocks!(W.density_centers, W.pressure_centers, W.velocity_centers, pL, pR)
-                pL, pR = W.pressure_centers .+ flat_coeff .* (pL .- W.pressure_centers), W.pressure_centers .+ flat_coeff .* (pR .- W.pressure_centers)
-            end
-            
-            if steepening == true
-                #steep_coeff = compute_steepening_coefficient(W.density_centers, W.pressure_centers)
-                #for i in 2:total_zones
-                #    δρ=ρR[i] - ρL[i]
-                #    ρL[i] = W.density_centers[i] - ((1+steep_coeff[i])/2) * δρ
-                #    ρR[i] = W.density_centers[i] + ((1+steep_coeff[i])/2) * δρ
-                #end
-                ρL, ρR = steepening_contact!(W.density_centers, W.pressure_centers, grid_points, γ, ρL, ρR)
-            end
-
-            #if reconstruction == :Parabolic || reconstruction == :Cubic 
-            #    ρL, ρR = enforce_monotonicity!(W.density_centers, ρL, ρR)
-            #    uL, uR = enforce_monotonicity!(W.velocity_centers, uL, uR)
-            #    pL, pR = enforce_monotonicity!(W.pressure_centers, pL, pR)
-            #end
-        else
-            ρL, ρR = W.density_centers, W.density_centers
-            uL, uR = W.velocity_centers, W.velocity_centers
-            pL, pR = W.pressure_centers, W.pressure_centers
         end
 
-        apply_boundary_conditions(boundary_condition, U, zones, ghost_zones)
-        
-        if mode == :Standard
-
-            for i in 2:total_zones
-                @inbounds begin
-                    if riemanntype == :HLL
-                        f1, f2, f3 = Riemann_HLL(ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], γ)
-                    elseif riemanntype == :HLLC
-                        f1, f2, f3 = Riemann_HLLC(ρR[i-1], uR[i-1], pR[i-1], ρL[i], uL[i], pL[i], γ)
-                    elseif riemanntype == :Exact
-                        pstar, ustar = solve_star_pressure(ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], γ)
-                        prims = sample_exact(0.0, ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], pstar, ustar, γ)
-                        f1 = prims[1] * prims[2]
-                        f2 = prims[1] * prims[2]^2 + prims[3]
-                        E = prims[3] / (γ - 1.0) + 0.5 * prims[1] * prims[2]^2
-                        f3 = prims[2] * (E + prims[3])
-                    end
-                    F.density_flux[i] = f1
-                    F.momentum_flux[i] = f2
-                    F.total_energy_flux[i] = f3
+    elseif mode == :Parallel
+        Threads.@threads for i in 2:total_zones
+            @inbounds begin
+                f1 = f2 = f3 = 0.0
+                if riemanntype == :HLL
+                    f1, f2, f3 = Riemann_HLL(ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], γ)
+                elseif riemanntype == :HLLC
+                    f1, f2, f3 = Riemann_HLLC(ρR[i-1], uR[i-1], pR[i-1], ρL[i], uL[i], pL[i], γ)
+                elseif riemanntype == :Exact
+                    pstar, ustar = solve_star_pressure(ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], γ)
+                    prims = sample_exact(0.0, ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], pstar, ustar, γ)
+                    f1 = prims[1] * prims[2]
+                    f2 = prims[1] * prims[2]^2 + prims[3]
+                    E = prims[3]/(γ-1.0) + 0.5*prims[1]*prims[2]^2
+                    f3 = prims[2] * (E + prims[3])
                 end
+                F.density_flux[i] = f1
+                F.momentum_flux[1][i] = f2
+                F.total_energy_flux[i] = f3
             end
-
-            for i in 2:total_zones-1
-                @inbounds begin
-                    U.density_centers[i] -= dt/spacing * (F.density_flux[i+1] - F.density_flux[i])
-                    U.momentum_centers[i] -= dt/spacing * (F.momentum_flux[i+1] - F.momentum_flux[i])
-                    U.total_energy_centers[i] -= dt/spacing * (F.total_energy_flux[i+1] - F.total_energy_flux[i])
-
-                end
-            end
-
-        elseif mode == :Parallel
-            Threads.@threads for i in 2:total_zones
-                @inbounds begin
-                    if riemanntype == :HLL
-                        f1, f2, f3 = Riemann_HLL(ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], γ)
-                    elseif riemanntype == :HLLC
-                        f1, f2, f3 = Riemann_HLLC(ρR[i-1], uR[i-1], pR[i-1], ρL[i], uL[i], pL[i], γ)
-                    elseif riemanntype == :Exact
-                        pstar, ustar = solve_star_pressure(ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], γ)
-                        prims = sample_exact(0.0, ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], pstar, ustar, γ)
-                        f1 = prims[1] * prims[2]
-                        f2 = prims[1] * prims[2]^2 + prims[3]
-                        E = prims[3] / (γ - 1.0) + 0.5 * prims[1] * prims[2]^2
-                        f3 = prims[2] * (E + prims[3])
-                    end
-                    F.density_flux[i] = f1
-                    F.momentum_flux[i] = f2
-                    F.total_energy_flux[i] = f3
-                end
-            end
-
-            # Update conserved variables (interior cells)
-            Threads.@threads for i in 2:total_zones-1
-                @inbounds begin
-                    U.density_centers[i] -= dt/spacing * (F.density_flux[i+1] - F.density_flux[i])
-                    U.momentum_centers[i] -= dt/spacing * (F.momentum_flux[i+1] - F.momentum_flux[i])
-                    U.total_energy_centers[i] -= dt/spacing * (F.total_energy_flux[i+1] - F.total_energy_flux[i])
-
-                end
-            end
-
-        elseif mode == :GPU
-
-            @warn "GPU mode not yet implemented for Godunov Schemes... Release coming in v0.2... Defaulting to Parallel..."
-            GodunovStep!(W, U, F, reconstruction, limiter, flattening, steepening, boundary_condition, riemanntype, γ, spacing, dt, cfl, mode, features, total_zones, zones, ghost_zones, grid_points)    
-
-        elseif mode == :HPC
-
-            @warn "HPC mode not yet implemented for Lax Friedrichs... Release coming in v0.5... Defaulting to Parallel..."
-            GodunovStep!(W, U, F, reconstruction, limiter, flattening, steepening, boundary_condition, riemanntype, γ, spacing, dt, cfl, mode, features, total_zones, zones, ghost_zones, grid_points)    
-        end    
-
-        if :Verbose ∈ features
-            solver_diagnostics(U, U_old, F, cfl, spacing, dt; logfile=Godunov_Log)
-            write_solver_output(Godunov_Log, W, U, F)
-            close(Godunov_Log)
         end
-    elseif :Debug ∈ features
-        GodunovStep_Debug!(W, U, F, reconstruction, limiter, flattening, steepening, boundary_condition, riemanntype, γ, spacing, dt, cfl, mode, features, total_zones, zones, ghost_zones)    
+
+        Threads.@threads for i in 2:total_zones-1
+            @inbounds begin
+                U.centers.density[i] -= dt/spacing * (F.density_flux[i+1] - F.density_flux[i])
+                U.centers.momentum[1][i] -= dt/spacing * (F.momentum_flux[1][i+1] - F.momentum_flux[1][i])
+                U.centers.total_energy[i] -= dt/spacing * (F.total_energy_flux[i+1] - F.total_energy_flux[i])
+            end
+        end
     end
-
 end

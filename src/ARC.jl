@@ -7,6 +7,16 @@ using ArgParse
 using Dates
 using Printf
 
+struct PrimaryUserInput
+    mode::Symbol
+    problem::Symbol
+    domain::Vector{Float64}
+    boundary_condition::Symbol
+    grid_preset::Symbol
+    final_time::Float64
+    adiabatic_constant::Symbol
+    file_choice::String
+end
 
 include("utility/hydro_structs.jl")
 include("utility/exports.jl")
@@ -29,102 +39,133 @@ end
 function run_Codex_Trials()
 
     #   initiate_UI()
-    user_input = initiate_UI()
+    user_input = initiate_developer_UI()
     
     Codex_Trials(user_input)
     
 end
 
+
+
 function New_UI()
-    modes = [:Standard, :Demonstrate, :Benchmark]
+    modes = [:Standard, :Demonstrate, :Benchmark, :Developer]
     problems = [:ShockTube, :BlastWave, :ShuOsher, :Custom]
-    boundary_conditions = [:Reflective, :Periodic]
+    boundary_conditions = [:Reflective, :Periodic, :None]
     grid_presets = [:Low, :Medium, :High, :Custom]
     adiabatic_const_presets = [:IdealGas, :Monatomic, :Diatomic, :Relativistic, :Custom]
 
 
     mode_prompt = ("Please select the mode you wish to run...")
     mode_choice = prompt_choice(mode_prompt, modes)
+    if mode_choice == :Developer
+        run_Codex_Trials()
+    elseif mode_choice != :Developer
+        problem_prompt = ("Please select the problem you wish to solve...")
+        problem_choice = prompt_choice(problem_prompt, problems)
 
-    problem_prompt = ("Please select the problem you wish to solve...")
-    problem_choice = prompt_choice(problem_prompt, problems)
-
-    println("Domain
-    Default: [-1.0, 1.0]
-    Enter new domain? (y/n)?")
-    domain_choice = readline()
-    
-    if domain_choice == "y"
-        println("Please enter the domain limits as two space-separated numbers (e.g. -0.5 0.5):")
-        domain_input = readline()
-        domain_limits = try
-            parse.(Float64, split(domain_input))
-        catch
-            println("Invalid input. Using default domain [-1.0, 1.0].")
-            [-1.0, 1.0]
-        end
-        if length(domain_limits) != 2 || domain_limits[1] >= domain_limits[2]
-            println("Invalid domain limits. Using default domain [-1.0, 1.0].")
+        println("Domain
+        Default: [-1.0, 1.0]
+        Enter new domain? (y/n)?")
+        domain_choice = readline()
+        
+        if domain_choice == "y"
+            println("Please enter the domain limits as two space-separated numbers (e.g. -0.5 0.5):")
+            domain_input = readline()
+            domain_limits = try
+                parse.(Float64, split(domain_input))
+            catch
+                println("Invalid input. Using default domain [-1.0, 1.0].")
+                [-1.0, 1.0]
+            end
+            if length(domain_limits) != 2 || domain_limits[1] >= domain_limits[2]
+                println("Invalid domain limits. Using default domain [-1.0, 1.0].")
+                domain_limits = [-1.0, 1.0]
+            end
+        else
             domain_limits = [-1.0, 1.0]
         end
-    else
-        domain_limits = [-1.0, 1.0]
-    end
 
-    boundary_condition_prompt = ("Boundary Conditions")
-    boundary_condition_choice = prompt_choice(boundary_condition_prompt, boundary_conditions)
+        boundary_condition_prompt = ("Boundary Conditions")
+        boundary_condition_choice = prompt_choice(boundary_condition_prompt, boundary_conditions)
 
-    grid_preset_prompt = ("Grid Resolution Presets")
+        grid_preset_prompt = ("Grid Resolution Presets")
 
 
-    if mode_choice != :Standard
-        grid_preset_choice = prompt_choice(grid_preset_prompt, grid_presets[1:end-1])
-    elseif mode_choice == :Standard
-        grid_preset_choice = prompt_choice(grid_preset_prompt, grid_presets)
-    end
-
-    println("Final Time:
-    Default: 1.0 seconds
-    Enter new value? (y/n)")
-    time_choice = readline()
-
-    if time_choice == "y"
-        println("Please enter the final time as a positive number (e.g. 0.5):")
-        time_input = readline()
-        final_time = try
-            t = parse(Float64, time_input)
-            if t <= 0
-                println("Final time must be positive. Using default value of 1.0 seconds.")
-                1.0
-            else
-                t
+        if mode_choice != :Standard
+            grid_preset_choice = prompt_choice(grid_preset_prompt, grid_presets[1:end-1])
+        elseif mode_choice == :Standard
+            grid_preset_choice = prompt_choice(grid_preset_prompt, grid_presets)
+            if grid_preset_choice == :Custom
+                println("Please enter the number of grid points as a positive integer (e.g. 100):")
+                grid_input = readline()
+                grid_points = try
+                    n = parse(Int, grid_input)
+                    if n <= 0
+                        println("Number of grid points must be positive. Using default value of 100.")
+                        100
+                    else
+                        n
+                    end
+                catch
+                    println("Invalid input. Using default number of grid points: 100.")
+                    100
+                end
+                global GRID_POINTS = grid_points
             end
-        catch
-            println("Invalid input. Using default final time of 1.0 seconds.")
-            1.0
         end
-    else
-        final_time = 1.0
+
+
+        println("Final Time:
+        Default: 1.0 seconds
+        Enter new value? (y/n)")
+        time_choice = readline()
+
+        if time_choice == "y"
+            println("Please enter the final time as a positive number (e.g. 0.5):")
+            time_input = readline()
+            final_time = try
+                t = parse(Float64, time_input)
+                if t <= 0
+                    println("Final time must be positive. Using default value of 1.0 seconds.")
+                    1.0
+                else
+                    t
+                end
+            catch
+                println("Invalid input. Using default final time of 1.0 seconds.")
+                1.0
+            end
+        else
+            final_time = 1.0
+        end
+
+        adiabatic_constant_prompt = ("Adiabatic Constant γ Presets:")
+        if mode_choice != :Standard 
+            adiabatic_constant_choice = prompt_choice(adiabatic_constant_prompt, adiabatic_const_presets[1:end-1])
+        elseif mode_choice == :Standard
+            adiabatic_constant_choice = prompt_choice(adiabatic_constant_prompt, adiabatic_const_presets)
+        end
+        
+        println("Would you like to write a parameter file? (y/n)")
+        file_choice = readline()
+
+        println(mode_choice)
+        println(problem_choice)
+        println(domain_limits)
+        println(boundary_condition_choice)
+        println(grid_preset_choice)
+        println(GRID_POINTS)
+        println(final_time)
+        println(adiabatic_constant_choice)
+        println(file_choice)
+
+        userinput = PrimaryUserInput(mode_choice, problem_choice, domain_limits, boundary_condition_choice, grid_preset_choice, final_time, adiabatic_constant_choice, file_choice)
+        println(userinput)
+
     end
 
-    adiabatic_constant_prompt = ("Adiabatic Constant γ Presets:")
-    if mode_choice != :Standard 
-        adiabatic_constant_choice = prompt_choice(adiabatic_constant_prompt, adiabatic_const_presets[1:end-1])
-    elseif mode_choice == :Standard
-        adiabatic_constant_choice = prompt_choice(adiabatic_constant_prompt, adiabatic_const_presets)
-    end
-    
-    println("Would you like to write a parameter file? (y/n)")
-    file_choice = readline()
-
-    println(mode_choice)
-    println(problem_choice)
-    println(domain_limits)
-    println(boundary_condition_choice)
-    println(grid_preset_choice)
-    println(final_time)
-    println(adiabatic_constant_choice)
 end
+
 export New_UI
 
 end

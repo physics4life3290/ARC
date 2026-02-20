@@ -13,13 +13,14 @@ function apply_boundary_conditions(user_input, U, _grid)
     end
 end
 
-function apply_boundary_conditions(boundary_condition::Symbol, U, zones::Int, ghost_zones::Int)
+function apply_boundary_conditions(boundary_condition::Symbol, U, nx, ng)
+    total_zones = nx + 2ng
     if boundary_condition == :Reflecting
-        apply_reflecting_boundaries!(U, ghost_zones, zones)
+        apply_reflecting_boundaries!(U, ng, nx)
     elseif boundary_condition == :Periodic
-        apply_periodic_boundaries!(U, ghost_zones, zones)
+        apply_periodic_boundaries!(U, total_zones)
     elseif boundary_condition == :Outflow
-        apply_outflow_boundaries!(U, ghost_zones, zones)
+        apply_outflow_boundaries!(U, total_zones)
     else
         println("No boundary conditions...")
     end

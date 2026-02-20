@@ -11,7 +11,7 @@ function run_introduction()
     readline()
 end
 
-function initiate_UI()
+function initiate_developer_UI()
 
     run_introduction()
 

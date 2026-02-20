@@ -25,40 +25,33 @@ function steepening(ρ::AbstractVector, p::AbstractVector, slope::AbstractVector
     return slope
 end
 
-function compute_steepening_coefficient(density::AbstractVector, pressure::AbstractVector; ε=1e-10)
+# --- Steepening coefficient (no modification needed) ---
+function compute_steepening_coefficient!(
+    β::AbstractVector,
+    density::AbstractVector,
+    pressure::AbstractVector;
+    ε = 1e-12
+)
     n = length(density)
-    β = zeros(n)  # start with no steepening
-
-    Threads.@threads for i in 2:(n-1)
-        @inbounds begin
-            Δρ = abs(density[i+1] - density[i-1])
-            Δp = abs(pressure[i+1] - pressure[i-1])
-            ρ_avg = (density[i+1] + 2*density[i] + density[i-1]) / 4
-            p_avg = (pressure[i+1] + 2*pressure[i] + pressure[i-1]) / 4
-
-            # Normalize gradients
-            grad_ρ = Δρ / (ρ_avg + ε)
-            grad_p = Δp / (p_avg + ε)
-
-            # Heuristic for contact: large density gradient but small pressure gradient
-            if grad_ρ > 0.1 && grad_p < 0.05
-                β[i] = 1.0
-            elseif grad_ρ > 0.05 && grad_p < 0.1
-                β[i] = 0.5
-            else
-                β[i] = 0.0
-            end
+    fill!(β, 0.0)
+    @inbounds for i in 3:(n-2)
+        Δρ = density[i+1] - density[i-1]
+        Δp = pressure[i+1] - pressure[i-1]
+        if (density[i+1] - density[i]) * (density[i] - density[i-1]) <= 0
+            continue
         end
+        ρ_ref = (density[i-1] + 2*density[i] + density[i+1]) * 0.25 + ε
+        p_ref = (pressure[i-1] + 2*pressure[i] + pressure[i+1]) * 0.25 + ε
+        grad_ρ = abs(Δρ)/ρ_ref
+        grad_p = abs(Δp)/p_ref
+        if grad_ρ < 0.05 || grad_p > 0.1
+            continue
+        end
+        ratio = grad_ρ / (grad_p + ε)
+        β[i] = clamp((ratio - 2.0)/4.0, 0.0, 1.0)
     end
-
-    # Boundaries: no steepening
-    β[1] = β[2]
-    β[end] = β[end-1]
-
-    return β
+    return nothing
 end
-
-
 # New way of doing this via FLASH Methods paper.
 function steepening_contact!(ρ::Vector{Float64}, P::Vector{Float64},
                              coord::Vector{Float64}, γ::Float64,
