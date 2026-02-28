@@ -3,13 +3,15 @@
 
 
 
-function solve_star_pressure(ρL::Float64, uL::Float64, pL::Float64, ρR::Float64, uR::Float64, pR::Float64, γ::Float64; tol=1e-12, maxiter=10000)
+function solve_star_pressure(ρL::Float64, uL::Float64, pL::Float64, ρR::Float64, uR::Float64, pR::Float64, γ::Float64; tol=1e-3, maxiter=100000, p0 = nothing)
 
-    p0 = PVRS_guess(ρL, uL, pL, ρR, uR, pR, γ)
+    if p0 === nothing
+        p0 = PVRS_guess(ρL, uL, pL, ρR, uR, pR, γ)
+    end
 
     f(p) = (wave_function(p, (ρL, uL, pL), γ)[1] + wave_function(p, (ρR, uR, pR), γ)[1] + (uR - uL))
     df(p) = (wave_function(p, (ρL, uL, pL), γ)[2] + wave_function(p, (ρR, uR, pR), γ)[2])
-
+    println("p0 is: ", p0)
     pstar, converged, niter = newton_raphson(f, df, p0; tol=tol, maxiter=maxiter)
     
     if !converged

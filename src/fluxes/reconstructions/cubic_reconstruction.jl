@@ -1,6 +1,20 @@
 # -----------------------------
 # Cubic interpolation for 1D stencil
 # -----------------------------
+function cubic_interpolation_stencil(v::Vector{Float64}, dx::Vector{Float64})
+    # Simple uniform-stencil cubic interpolation
+    # v = [v_{i-1}, v_i, v_{i+1}, v_{i+2}]
+    # dx = [dx_{i-1}, dx_i, dx_{i+1}, dx_{i+2}]
+    # Returns: var_R, δvar_i, δvar_ip1
+
+    # For uniform dx, standard PPM-style cubic reconstruction:
+    var_R = (7*v[2] + 7*v[3] - v[1] - v[4])/12  # right interface of cell i
+    δvar_i = (v[3] - v[1])/2                      # slope estimate for cell i
+    δvar_ip1 = (v[4] - v[2])/2                    # slope estimate for cell i+1
+
+    return var_R, δvar_i, δvar_ip1
+end
+
 function cubic_interpolation(var::Vector{Float64}, Δx::Vector{Float64}, i::Int)
     n = length(var)
     # build safe stencil indices
@@ -66,7 +80,7 @@ function reconstruct_interfaces(var::Vector{Float64}, coord::Vector{Float64})
     varR = zeros(N)
 
     # Interior reconstruction
-    Threads.@threads for i in 2:N-2
+    for i in 2:N-2
         @inbounds begin
             # Cubic interpolation
             vR, δvar_i, δvar_ip1 = cubic_interpolation(var, Δξ, i)

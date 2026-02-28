@@ -31,34 +31,6 @@ function make_grid(kind::Symbol, origin::NTuple{N,T}, domain::NTuple{N,T},
 
         return UniformGrid{T,N}(axes, origin, ghost_zones, total_zones, active_zones, domain)
 
-    elseif kind === :nonuniform
-        if dx_array === nothing
-            error("dx_array must be supplied for nonuniform grids")
-        end
-
-        axes = ntuple(i -> begin
-            dx_i = dx_array[i]
-
-            centers = origin[i] .+ cumsum(dx_i) .- 0.5*dx_i
-            faces = [origin[i]; origin[i] .+ cumsum(dx_i)]
-
-            # ghost zones: repeat first/last dx
-            pre_centers = centers[1] .- reverse(cumsum(dx_i[1:ghost_zones]))
-            post_centers = centers[end] .+ cumsum(dx_i[end-ghost_zones+1:end])
-            centers_ext = vcat(pre_centers, centers, post_centers)
-
-            pre_faces = faces[1] .- reverse(cumsum(dx_i[1:ghost_zones]))
-            post_faces = faces[end] .+ cumsum(dx_i[end-ghost_zones+1:end])
-            faces_ext = vcat(pre_faces, faces, post_faces)
-
-            NonUniformAxis(centers_ext, faces_ext, dx_i, Int32(length(centers_ext)), (origin[i], origin[i]+domain[i]))
-        end, N)
-
-        active_zones = ntuple(i -> (ghost_zones+1):(ghost_zones+nx[i]), N)
-        total_zones = ntuple(i -> Int32(nx[i] + 2*ghost_zones), N)
-
-        return NonUniformGrid{T,N}(axes, origin, ghost_zones, total_zones, active_zones, domain)
-
     elseif kind === :adaptive
         root_blocks = [Block{T}(Vector{Vector{T}}(), zero(T), 0, Block{T}[], origin[1], nx[1])]
         return AdaptiveGrid{T,N}(root_blocks, origin, domain, ghost_zones, 0)
@@ -68,3 +40,69 @@ function make_grid(kind::Symbol, origin::NTuple{N,T}, domain::NTuple{N,T},
     end
 end
 
+abstract type Verbosity end
+struct Standard <: Verbosity end
+struct Verbose  <: Verbosity end
+
+log(::Standard, args...) = nothing
+log(::Verbose, args...)  = println(args...)
+
+function build_uniform_axis(i, origin, domain, nx, ghost_zones, ::Type{T}, mode::Verbosity) where T
+
+    log(mode, "\n→ AXIS ", i, " INITIALIZATION")
+
+    dx = (domain[i] - origin[i]) / nx[i]
+    log(mode, "   Δx = ", dx)
+
+    centers = origin[i] .+ dx*(0.5:(nx[i]-0.5))
+    centers = vcat(
+        centers[1] .- dx*reverse(1:ghost_zones),
+        centers,
+        centers[end] .+ dx*(1:ghost_zones)
+    )
+
+    faces = origin[i] .+ dx*(0:nx[i])
+    faces = vcat(
+        faces[1] .- dx*reverse(1:ghost_zones),
+        faces,
+        faces[end] .+ dx*(1:ghost_zones)
+    )
+
+    log(mode, "   Final center count: ", length(centers))
+    log(mode, "   Final face count:   ", length(faces))
+
+    return UniformAxis(
+        collect(centers),
+        collect(faces),
+        dx,
+        Int32(length(centers)),
+        (origin[i], origin[i] + domain[i])
+    )
+end
+
+function make_grid(kind::Symbol, origin::NTuple{N,T}, domain::NTuple{N,T},
+                   nx::NTuple{N,Int32}, ghost_zones::Int32;
+                   threshold=0.02, dx_array=nothing,
+                   mode::Verbosity=Standard()) where {T,N}
+
+    log(mode, "══════════════════════════════════════════════")
+    log(mode, "GRID CONSTRUCTION START")
+
+    if kind === :uniform
+
+        axes = ntuple(i -> build_uniform_axis(i, origin, domain, nx, ghost_zones, T, mode), N)
+
+        active_zones = ntuple(i -> (ghost_zones+1):(ghost_zones+nx[i]), N)
+        total_zones  = ntuple(i -> Int32(nx[i] + 2*ghost_zones), N)
+
+        return UniformGrid{T,N}(axes, origin, ghost_zones, total_zones, active_zones, domain)
+
+    elseif kind === :adaptive
+
+        root_blocks = [Block{T}(Vector{Vector{T}}(), zero(T), 0, Block{T}[], origin[1], nx[1])]
+        return AdaptiveGrid{T,N}(root_blocks, origin, domain, ghost_zones, 0)
+
+    else
+        error("Unknown grid type: $kind")
+    end
+end

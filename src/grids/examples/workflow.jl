@@ -3,40 +3,6 @@
 
 
 
-include("../make_grid.jl")
-
-include("../../fluxes/fluxes_include.jl")
-include("../../solvers/HYDRO/FVM/Godunov/GodunovScheme.jl")
-#include("../boundary_conditions/reflecting.jl")
-include("../../limiters/minmod.jl")
-include("../../limiters/vanleer.jl")
-using Plots
-using HDF5
-# ----------------------
-# Example usage
-# ----------------------
-T = Float64          # numerical precision
-N = 1                # number of dimensions (integer)
-origin = (0.0,)      # physical coordinates (floats)
-domain = (1.0,)      # physical size
-nx = (200,)          # number of zones along each axis (integer)
-ghost_zones = 3      # number of ghost zones (integer)
-γ = 5/3              # physical constant (float)
-cfl = 0.3            # CFL number (float)
-t_final = 0.5        # simulation time (float)
-h5_filename = "test.h5"
-
-grid_u = make_grid(:uniform, origin, domain, Int32.(nx), Int32(ghost_zones))
-
-println("Uniform Grid:")
-println("Centers: ", grid_u.axes[1].centers)
-#println("Centers 2: ", grid_u.axes[2].centers)
-println("Faces:   ", grid_u.axes[1].faces)
-println("dx:      ", grid_u.axes[1].dx)
-println("Bounds:  ", grid_u.axes[1].bounds)
-println("Active zones: ", grid_u.active_zones[1])
-println()
-
 struct PrimitiveFields{T,N}
     density::Vector{T}
     velocity::NTuple{N, Vector{T}}
@@ -67,19 +33,64 @@ struct FluxVariables{T, N}
     total_energy_flux::Vector{T}
 end
 
-function ConstructShockTubeIC(grid, wall_positions::Vector{T}, states::Vector, gamma::T) where {T}
+include("../make_grid.jl")
+
+include("../../fluxes/fluxes_include.jl")
+include("../../solvers/HYDRO/FVM/Godunov/GodunovScheme.jl")
+include("../../solvers/HYDRO/FVM/Godunov/GodunovSchemeDebug.jl")
+#include("../boundary_conditions/reflecting.jl")
+include("../../limiters/minmod.jl")
+include("../../limiters/vanleer.jl")
+using Plots
+using HDF5
+# ----------------------
+# Example usage
+# ----------------------
+T = Float64          # numerical precision
+N = 1                # number of dimensions (integer)
+origin = (0.0,)      # physical coordinates (floats)
+domain = (2.0,)      # physical size
+nx = (100,)          # number of zones along each axis (integer)
+ghost_zones = 3      # number of ghost zones (integer)
+γ = 5/3              # physical constant (float)
+cfl = 0.3            # CFL number (float)
+t_final = 0.5        # simulation time (float)
+h5_filename = "test.h5"
+states = [
+    (density=1.0, velocity=(0.0,), pressure=1.0),
+    (density=0.125, velocity=(0.0,), pressure=0.1)
+]
+walls = [1.0]
+
+grid_u = make_grid(:uniform, origin, domain, Int32.(nx), Int32(ghost_zones), mode=Verbose())
+
+println("Uniform Grid:")
+println("Centers: ", grid_u.axes[1].centers)
+#println("Centers 2: ", grid_u.axes[2].centers)
+println("Faces:   ", grid_u.axes[1].faces)
+println("dx:      ", grid_u.axes[1].dx)
+println("Bounds:  ", grid_u.axes[1].bounds)
+println("Active zones: ", grid_u.active_zones[1])
+println()
+
+function ConstructShockTubeIC(grid, wall_positions::Vector{T}, states::Vector,
+                              gamma::T; mode::Verbosity = Standard()) where {T}
+
+    log(mode, "Constructing Shock Tube initial conditions...")
 
     N = length(grid.axes)
-    total = grid.total_zones[1]   # <--- cast to Int
+    total = grid.total_zones[1]
 
     @assert length(states) == length(wall_positions) + 1
 
     walls = sort(wall_positions)
 
+    log(mode, "Initializing variable centers...")
     density_c = zeros(T, total)
     pressure_c = zeros(T, total)
     velocity_c = ntuple(_ -> zeros(T, total), N)
 
+    log(mode, "Initializing variable faces...")
     density_f = zeros(T, total)
     pressure_f = zeros(T, total)
     velocity_f = ntuple(_ -> zeros(T, total), N)
@@ -95,6 +106,8 @@ function ConstructShockTubeIC(grid, wall_positions::Vector{T}, states::Vector, g
         return length(walls) + 1
     end
 
+    log(mode, "Assigning initial conditions to centers...")
+
     @inbounds for idx in 1:total
         r = region_index(xcenters[idx])
         s = states[r]
@@ -107,18 +120,17 @@ function ConstructShockTubeIC(grid, wall_positions::Vector{T}, states::Vector, g
         end
     end
 
+    log(mode, "Creating Primitive Fields...")
+
     centers_struct = PrimitiveFields{T,N}(density_c, velocity_c, pressure_c)
     faces_struct   = PrimitiveFields{T,N}(density_f, velocity_f, pressure_f)
+
+    log(mode, "Returning Primitive Variables struct...")
 
     return PrimitiveVariables{T,N}(centers_struct, faces_struct)
 end
 
-states = [
-    (density=1.0, velocity=(0.0,), pressure=1.0),
-    (density=0.125, velocity=(0.0,), pressure=0.1)
-]
-
-W = ConstructShockTubeIC(grid_u, [0.5], states, 1.4)
+W = ConstructShockTubeIC(grid_u, walls, states, γ, mode = Verbose())
 
 centers = ConservativeFields{Float64, 1}(W.centers.density, (W.centers.density .* W.centers.velocity[1], ), W.centers.pressure ./ (γ - 1) + 0.5 * (W.centers.density .* W.centers.velocity[1].^2))
 faces = ConservativeFields{Float64, 1}(W.faces.density, (W.faces.density .* W.faces.velocity[1], ), W.faces.pressure ./ (γ - 1) + 0.5 * (W.faces.density .* W.faces.velocity[1].^2))
@@ -143,6 +155,7 @@ while t < t_final
     
     
     GodunovStep!(W, U, F, :Cubic, :vanleer, true, true, :Reflecting, :Exact, γ, grid_u.axes[1].dx, dt, grid_u.total_zones[1], nx[1], ghost_zones, grid_u.axes[1].centers, :Standard)
+#    GodunovStepDebug!(W, U, F, :Cubic, :vanleer, true, true, :Reflecting, :Exact, γ, grid_u.axes[1].dx, dt, grid_u.total_zones[1], Int32(nx[1]), Int32(ghost_zones), grid_u.axes[1].centers, :Standard, counter, t, cfl)
 
     F.density_flux[1:end-1] .= U.centers.momentum[1]
     F.momentum_flux[1][1:end-1] .= U.centers.momentum[1].^2 ./ U.centers.density + (γ - 1) .* (U.centers.total_energy .- 0.5 .* U.centers.momentum[1] .^ 2 ./ U.centers.density)
@@ -195,3 +208,4 @@ while t < t_final
     global counter += 1
 end
 plot!(grid_u.axes[1].centers, U.centers.density, label="Density")
+=#

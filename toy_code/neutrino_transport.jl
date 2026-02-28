@@ -39,7 +39,7 @@ function simulate_stable_transport()
     nx = 200
     dx = 0.05
     dt = 0.01 
-    t_steps = 500
+    t_steps = 50
     c = 1.0
 
     # Fields
