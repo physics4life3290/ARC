@@ -1,10 +1,14 @@
 
+
+
+
+
 function GodunovStep!(
     W, U, F,
     reconstruction, limiter,
     flattening, steepening,
     boundary_condition, riemanntype,
-    γ, spacing, dt,
+    eos::AbstractEOS, spacing, dt,
     total_zones, zones, ghost_zones, grid_points,
     mode
 )
@@ -31,11 +35,11 @@ function GodunovStep!(
         end
 
         if steepening
-            ρL, ρR = steepening_contact!(W.centers.density, W.centers.pressure, grid_points, γ, ρL, ρR)
+            ρL, ρR = steepening_contact!(W.centers.density, W.centers.pressure, grid_points, eos, ρL, ρR)
         end
 
         if flattening
-            flat_coeff = compute_flattening_coeff!(zeros(length(W.centers.density)), W.centers.pressure, W.centers.velocity[1])
+            flat_coeff = compute_flattening_coeff!(zeros(length(W.centers.density)), W.centers.pressure, W.centers.velocity[1], zeros(length(W.centers.density)))
             if reconstruction == :Linear
                 @inbounds begin
                     ρL[1:end-1] .= W.centers.density .+ flat_coeff .* (ρL[1:end-1] .- W.centers.density)
@@ -55,7 +59,6 @@ function GodunovStep!(
                     pR .= W.centers.pressure .+ flat_coeff .* (pR .- W.centers.pressure)
                 end
             end
-    
         end
     else
         ρL, ρR = W.centers.density, W.centers.density
@@ -72,28 +75,29 @@ function GodunovStep!(
             @inbounds begin
                 f1 = f2 = f3 = 0.0
                 if riemanntype == :HLL
-                    f1, f2, f3 = Riemann_HLL(ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], γ)
+                    f1, f2, f3 = Riemann_HLL(ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], eos)
                 elseif riemanntype == :HLLC
-                    f1, f2, f3 = Riemann_HLLC(ρR[i-1], uR[i-1], pR[i-1], ρL[i], uL[i], pL[i], γ)
+                    f1, f2, f3 = Riemann_HLLC(eos, ρR[i-1], uR[i-1], pR[i-1], ρL[i], uL[i], pL[i], wavespeed=:Einfeldt)
                 elseif riemanntype == :Exact
-                    pstar, ustar = solve_star_pressure(ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], γ)
-                    prims = sample_exact(0.0, ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], pstar, ustar, γ)
+                    pstar, ustar = solve_star_pressure(ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], eos)
+                    prims = sample_exact(0.0, ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], pstar, ustar, eos)
                     f1 = prims[1] * prims[2]
                     f2 = prims[1] * prims[2]^2 + prims[3]
-                    E = prims[3]/(γ-1.0) + 0.5*prims[1]*prims[2]^2
+                    eR = specific_energy(eos, prims[1], prims[3])
+                    E  = prims[1] * eR + 0.5 * prims[1] * prims[2]^2
                     f3 = prims[2] * (E + prims[3])
                 end
-                F.density_flux[i] = f1
-                F.momentum_flux[1][i] = f2
+                F.density_flux[i]      = f1
+                F.momentum_flux[1][i]  = f2
                 F.total_energy_flux[i] = f3
             end
         end
 
         for i in 2:total_zones-1
             @inbounds begin
-                U.centers.density[i] -= dt/spacing * (F.density_flux[i+1] - F.density_flux[i]) 
-                U.centers.momentum[1][i] -= dt/spacing * (F.momentum_flux[1][i+1] - F.momentum_flux[1][i])
-                U.centers.total_energy[i] -= dt/spacing * (F.total_energy_flux[i+1] - F.total_energy_flux[i])
+                U.centers.density[i]       -= dt/spacing * (F.density_flux[i+1]      - F.density_flux[i])
+                U.centers.momentum[1][i]   -= dt/spacing * (F.momentum_flux[1][i+1]  - F.momentum_flux[1][i])
+                U.centers.total_energy[i]  -= dt/spacing * (F.total_energy_flux[i+1] - F.total_energy_flux[i])
             end
         end
 
@@ -102,27 +106,28 @@ function GodunovStep!(
             @inbounds begin
                 f1 = f2 = f3 = 0.0
                 if riemanntype == :HLL
-                    f1, f2, f3 = Riemann_HLL(ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], γ)
+                    f1, f2, f3 = Riemann_HLL(ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], eos)
                 elseif riemanntype == :HLLC
-                    f1, f2, f3 = Riemann_HLLC(ρR[i-1], uR[i-1], pR[i-1], ρL[i], uL[i], pL[i], γ)
+                    f1, f2, f3 = Riemann_HLLC(ρR[i-1], uR[i-1], pR[i-1], ρL[i], uL[i], pL[i], eos)
                 elseif riemanntype == :Exact
-                    pstar, ustar = solve_star_pressure(ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], γ)
-                    prims = sample_exact(0.0, ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], pstar, ustar, γ)
+                    pstar, ustar = solve_star_pressure(ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], eos)
+                    prims = sample_exact(0.0, ρL[i-1], uL[i-1], pL[i-1], ρR[i], uR[i], pR[i], pstar, ustar, eos)
                     f1 = prims[1] * prims[2]
                     f2 = prims[1] * prims[2]^2 + prims[3]
-                    E = prims[3]/(γ-1.0) + 0.5*prims[1]*prims[2]^2
+                    eR = specific_energy(eos, prims[1], prims[3])
+                    E  = prims[1] * eR + 0.5 * prims[1] * prims[2]^2
                     f3 = prims[2] * (E + prims[3])
                 end
-                F.density_flux[i] = f1
-                F.momentum_flux[1][i] = f2
+                F.density_flux[i]      = f1
+                F.momentum_flux[1][i]  = f2
                 F.total_energy_flux[i] = f3
             end
         end
 
         Threads.@threads for i in 2:total_zones-1
             @inbounds begin
-                U.centers.density[i] -= dt/spacing * (F.density_flux[i+1] - F.density_flux[i])
-                U.centers.momentum[1][i] -= dt/spacing * (F.momentum_flux[1][i+1] - F.momentum_flux[1][i])
+                U.centers.density[i]      -= dt/spacing * (F.density_flux[i+1]      - F.density_flux[i])
+                U.centers.momentum[1][i]  -= dt/spacing * (F.momentum_flux[1][i+1]  - F.momentum_flux[1][i])
                 U.centers.total_energy[i] -= dt/spacing * (F.total_energy_flux[i+1] - F.total_energy_flux[i])
             end
         end

@@ -52,9 +52,10 @@ function compute_steepening_coefficient!(
     end
     return nothing
 end
+
 # New way of doing this via FLASH Methods paper.
 function steepening_contact!(ρ::Vector{Float64}, P::Vector{Float64},
-                             coord::Vector{Float64}, γ::Float64,
+                             coord::Vector{Float64}, eos::AbstractEOS,
                              varL::Vector{Float64}, varR::Vector{Float64})
 
     N = length(ρ)
@@ -69,64 +70,67 @@ function steepening_contact!(ρ::Vector{Float64}, P::Vector{Float64},
     ξf[1]   = coord[1]   - 0.5*(coord[2]-coord[1])
     ξf[end] = coord[end] + 0.5*(coord[end]-coord[end-1])
 
-    Δξ = similar(ρ)
     Δξ = [ξf[i+1] - ξf[i] for i in 1:N]
 
     # -----------------------------
-    # 2. Loop over interior cells
+    # 2. Compute effective γ per cell for contact steepening condition
+    #    For a general EOS this is the adiabatic index Γ = ρ/P * c²
     # -----------------------------
-    Threads.@threads for i in 3:N-3   # need neighbors up to i±3
+    Γ = [begin
+            e_i = specific_energy(eos, ρ[i], P[i])
+            c_i = sound_speed(eos, ρ[i], e_i)
+            ρ[i] * c_i^2 / P[i]
+         end for i in 1:N]
+
+    # -----------------------------
+    # 3. Loop over interior cells
+    # -----------------------------
+    Threads.@threads for i in 3:N-3
         @inbounds begin
             # Monotonized slopes
             δvar_im1 = slope_limiter(ρ[i-1] - ρ[i-2], ρ[i-1], ρ[i-2], ρ[i])
-            δvar_ip1 = slope_limiter(ρ[i+1] - ρ[i], ρ[i+1], ρ[i], ρ[i+2])
+            δvar_ip1 = slope_limiter(ρ[i+1] - ρ[i],   ρ[i+1], ρ[i],   ρ[i+2])
 
             # Linear steepened interfaces
             ρL_d = ρ[i-1] + 0.5*δvar_im1
             ρR_d = ρ[i+1] - 0.5*δvar_ip1
 
-            ξcumsum = cumsum(Δξ)  # once
+            ξcumsum = cumsum(Δξ)
             Δξ_im1 = ξcumsum[i-1]
             Δξ_i   = ξcumsum[i]
             Δξ_ip1 = ξcumsum[i+1]
 
-
             δ2ρ_i = (1 / (Δξ_im1 + Δξ_i + Δξ_ip1)) *
-                    ((ρ[i+1] - ρ[i]) / (Δξ_ip1 + Δξ_i) -
-                    (ρ[i] - ρ[i-1]) / (Δξ_i + Δξ_im1))
+                    ((ρ[i+1] - ρ[i])   / (Δξ_ip1 + Δξ_i) -
+                     (ρ[i]   - ρ[i-1]) / (Δξ_i   + Δξ_im1))
 
-            # Neighbor second derivatives
             δ2ρ_im1 = (1 / (Δξ[i-2] + Δξ[i-1] + Δξ[i])) *
-                    ((ρ[i] - ρ[i-1]) / (Δξ[i] + Δξ[i-1]) -
-                    (ρ[i-1] - ρ[i-2]) / (Δξ[i-1] + Δξ[i-2]))
+                      ((ρ[i]   - ρ[i-1]) / (Δξ[i]   + Δξ[i-1]) -
+                       (ρ[i-1] - ρ[i-2]) / (Δξ[i-1] + Δξ[i-2]))
 
             δ2ρ_ip1 = (1 / (Δξ_ip1 + Δξ[i+2] + Δξ[i+3])) *
-                    ((ρ[i+2] - ρ[i+1]) / (Δξ[i+3] + Δξ[i+2]) -
-                    (ρ[i+1] - ρ[i])   / (Δξ[i+2] + Δξ_ip1))
+                      ((ρ[i+2] - ρ[i+1]) / (Δξ[i+3] + Δξ[i+2]) -
+                       (ρ[i+1] - ρ[i])   / (Δξ[i+2] + Δξ_ip1))
 
-            # Cell center positions
             ξ_im1 = sum(Δξ[1:i-1])
             ξ_i   = sum(Δξ[1:i])
             ξ_ip1 = sum(Δξ[1:i+1])
 
-            # η̅_i
             ηbar = ((δ2ρ_ip1 - δ2ρ_im1) / (ξ_ip1 - ξ_im1)) *
-                (((ξ_i - ξ_im1)^3 + (ξ_ip1 - ξ_i)^3) / (ρ[i+1] - ρ[i-1]))
+                   (((ξ_i - ξ_im1)^3 + (ξ_ip1 - ξ_i)^3) / (ρ[i+1] - ρ[i-1]))
 
-            # Conditions
-            if abs(ρ[i+1]-ρ[i-1]) / min(ρ[i+1],ρ[i-1]) < 0.01
+            # Conditions — γ replaced with local adiabatic index Γ[i]
+            if abs(ρ[i+1] - ρ[i-1]) / min(ρ[i+1], ρ[i-1]) < 0.01
                 ηbar = 0.0
-            elseif δ2ρ_im1*δ2ρ_ip1 > 0
+            elseif δ2ρ_im1 * δ2ρ_ip1 > 0
                 ηbar = 0.0
-            elseif abs(P[i+1]-P[i-1]) / min(P[i+1],P[i-1]) >
-                0.1*γ*abs(ρ[i+1]-ρ[i-1]) / min(ρ[i+1],ρ[i-1])
+            elseif abs(P[i+1] - P[i-1]) / min(P[i+1], P[i-1]) >
+                   0.1 * Γ[i] * abs(ρ[i+1] - ρ[i-1]) / min(ρ[i+1], ρ[i-1])
                 ηbar = 0.0
             end
 
-            # Steepening coefficient
             η_i = max(0.0, min(20*(ηbar - 0.05), 1.0))
 
-            # Update interfaces
             varL[i] = varL[i]*(1 - η_i) + ρL_d*η_i
             varR[i] = varR[i]*(1 - η_i) + ρR_d*η_i
         end

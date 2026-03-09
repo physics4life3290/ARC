@@ -11,7 +11,6 @@ function solve_star_pressure(ρL::Float64, uL::Float64, pL::Float64, ρR::Float6
 
     f(p) = (wave_function(p, (ρL, uL, pL), γ)[1] + wave_function(p, (ρR, uR, pR), γ)[1] + (uR - uL))
     df(p) = (wave_function(p, (ρL, uL, pL), γ)[2] + wave_function(p, (ρR, uR, pR), γ)[2])
-    println("p0 is: ", p0)
     pstar, converged, niter = newton_raphson(f, df, p0; tol=tol, maxiter=maxiter)
     
     if !converged

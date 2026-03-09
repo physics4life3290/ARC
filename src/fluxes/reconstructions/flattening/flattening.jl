@@ -110,31 +110,107 @@ function shock_flattener(ρ, u, p, i, dx; tau=0.33, C=0.5)
     return φ
 end
 
-# --- Flattening coefficient ---
+# ============================================================================= #
+#                                                                               #
+#   Colella-Woodward Flattening Coefficient                                    #
+#   Algorithms for Realistic Computations (ARC)                                #
+#   Reference: Colella & Woodward (1984), JCP 54, 174                          #
+#                                                                               #
+# ============================================================================= #
+
+"""
+    compute_flattening_coeff!(Fi, P, u; z1, z2, δp_threshold, ϵ)
+
+Compute the Colella-Woodward flattening coefficient in-place.
+
+Fi[i] ∈ [0,1] where:
+  0 → no flattening (full high-order reconstruction)
+  1 → full flattening (drop to piecewise constant)
+
+Arguments:
+  Fi            — output flattening coefficient vector (modified in-place)
+  P             — pressure array
+  u             — velocity array
+  z1            — lower transition zone boundary  (default 0.75, C-W standard)
+  z2            — upper transition zone boundary  (default 0.85, C-W standard)
+  δp_threshold  — pressure jump threshold         (default 0.33, C-W standard)
+  ϵ             — small number to prevent division by zero
+  widen         — number of widening passes       (default 2)
+"""
 function compute_flattening_coeff!(
     Fi::Vector{Float64},
     P::Vector{Float64},
-    u::Vector{Float64};
-    ϵ = 1e-12
+    u::Vector{Float64},
+    Fi_tmp::Vector{Float64};          # pass pre-allocated buffer — no allocation inside
+    z1::Float64            = 0.75,
+    z2::Float64            = 0.85,
+    δp_threshold::Float64  = 0.33,
+    ϵ::Float64             = 1.0e-12,
+    widen::Int             = 2
 )
     n = length(P)
     fill!(Fi, 0.0)
+
+    # ----------------------------------------------------------------- #
+    #   Step 1: Compute raw flattening at each cell                      #
+    # ----------------------------------------------------------------- #
     @inbounds for i in 3:n-2
-        num = abs(P[i+1] - P[i-1])
-        den = abs(P[i+2] - P[i-2]) + ϵ
+        num   = abs(P[i+1] - P[i-1])
+        den   = abs(P[i+2] - P[i-2]) + ϵ
         ratio = num / den
-        fbar = clamp(4.0*(ratio-0.5),0.0,1.0)
-        Pmin = max(min(P[i+1],P[i-1]),ϵ)
-        pressure_jump = (num/Pmin) > 0.33
-        compressive = (u[i+1]-u[i-1]) < 0.0
+
+        # Colella-Woodward transition zone [z1, z2]
+        fbar = if ratio <= z1
+            0.0
+        elseif ratio >= z2
+            1.0
+        else
+            (ratio - z1) / (z2 - z1)
+        end
+
+        # Only flatten at shocks: strong pressure jump AND compressive flow
+        Pmin          = min(P[i+1], P[i-1])
+        pressure_jump = (num / (abs(Pmin) + ϵ)) > δp_threshold
+        compressive   = (u[i+1] - u[i-1]) < 0.0
+
         Fi[i] = (pressure_jump && compressive) ? fbar : 0.0
     end
 
-    # Widening
-    Fi_tmp = copy(Fi)
-    @inbounds for i in 3:n-2
-        Fi[i] = P[i+1] < P[i-1] ? max(Fi_tmp[i], Fi_tmp[i+1]) : max(Fi_tmp[i], Fi_tmp[i-1])
+    # ----------------------------------------------------------------- #
+    #   Step 2: Widen the flattening zone                                #
+    #   Multiple passes ensure the shock peak and its neighbors are      #
+    #   all flattened — prevents odd-even decoupling at the shock front  #
+    # ----------------------------------------------------------------- #
+    for _ in 1:widen
+        copyto!(Fi_tmp, Fi)
+        @inbounds for i in 3:n-2
+            # Spread toward the high-pressure side
+            Fi[i] = if P[i+1] < P[i-1]
+                max(Fi_tmp[i], Fi_tmp[i+1])
+            else
+                max(Fi_tmp[i], Fi_tmp[i-1])
+            end
+        end
     end
 
     return Fi
+end
+
+
+# ============================================================================= #
+#   APPLICATION: Flatten interface states                                        #
+#                                                                               #
+#   Given left/right reconstructed states at interface i+1/2,                  #
+#   blend toward piecewise constant using flattening coefficient Fi.            #
+#                                                                               #
+#   Q_L_flat = (1 - Fi) * Q_L + Fi * Q[i]                                     #
+#   Q_R_flat = (1 - Fi) * Q_R + Fi * Q[i+1]                                   #
+# ============================================================================= #
+
+@inline function apply_flattening(QL::Float64, QR::Float64,
+                                   Qi::Float64,  Qi1::Float64,
+                                   Fi::Float64)
+    QL_flat = (1.0 - Fi) * QL + Fi * Qi
+    QR_flat = (1.0 - Fi) * QR + Fi * Qi1
+    return QL_flat, QR_flat
 end

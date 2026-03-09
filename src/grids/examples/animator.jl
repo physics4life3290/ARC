@@ -49,7 +49,7 @@ function animate_hdf5(h5_filename::String, dataset::String, variable::String, ou
             title = "$dataset/$variable at t = $(round(time, digits=3))",
             xlabel = "x",
             ylabel = variable,
-            ylim = (0.0, 1.0),
+            ylim = (0.0, 1.1 * maximum(y)),
             lw = lw,
             legend = false)
     end
@@ -61,5 +61,5 @@ function animate_hdf5(h5_filename::String, dataset::String, variable::String, ou
     println("Animation saved to $output_mp4")
 end
 
-animate_hdf5("test.h5", "W", "density", "density_evolution.mp4")
-animate_hdf5("test.h5", "U", "momentum", "momentum_evolution.mp4")
+animate_hdf5("Test.h5", "W", "density", "density_evolution.mp4")
+animate_hdf5("Test.h5", "U", "momentum", "momentum_evolution.mp4")
